@@ -45,6 +45,15 @@
     #conn-status { font-size: 0.75rem; color: #4caf50; }
     #conn-status.off { color: #f44336; }
 
+    #mode-badge {
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 3px 10px; border-radius: 20px; display: none;
+    }
+    #mode-badge.freeze { background: #ede8d0; color: #888; }
+    #mode-badge.free  { background: #dff0ff; color: #2a6090; }
+    #mode-badge.turn  { background: #e8f5e9; color: #2e7d32; }
+    #mode-badge.clock { background: #fff3cd; color: #856404; }
+
     #turn-status {
       width: 100%;
       text-align: center;
@@ -136,6 +145,7 @@
       <span id="player-name">—</span>
       <span id="player-pos">—</span>
     </div>
+    <span id="mode-badge"></span>
     <span id="conn-status" class="off">connecting</span>
   </div>
 
@@ -216,6 +226,14 @@
 
     const timerWrap = document.getElementById('timer-bar-wrap');
     const timerBar  = document.getElementById('timer-bar');
+    const modeBadge = document.getElementById('mode-badge');
+
+    function updateModeBadge(mode) {
+      const labels = { freeze: 'Freeze', free: 'Free', turn: 'Turns', clock: 'Clock' };
+      modeBadge.textContent = labels[mode] || mode;
+      modeBadge.className = mode;
+      modeBadge.style.display = 'inline-block';
+    }
 
     let currentMode = 'turn';
     const actionMap = { 'btn-up': 'up', 'btn-down': 'down', 'btn-left': 'left', 'btn-right': 'right', 'btn-stay': 'stay' };
@@ -231,8 +249,15 @@
       const me = state.players.find(p => p.name === playerName);
       if (me) playerPosEl.textContent = `${me.x}, ${me.y}`;
       currentMode = state.mode;
+      updateModeBadge(state.mode);
 
-      if (state.mode === 'turn') {
+      if (state.mode === 'freeze') {
+        turnStatusEl.style.display = 'block';
+        turnStatusEl.textContent = 'Frozen';
+        turnStatusEl.className = 'waiting';
+        setControlsEnabled(false);
+        timerWrap.style.display = 'none';
+      } else if (state.mode === 'turn') {
         const myTurn = state.currentTurn === playerName;
         turnStatusEl.style.display = 'block';
         turnStatusEl.textContent = myTurn ? 'Your turn!' : `Waiting for ${state.currentTurn}…`;

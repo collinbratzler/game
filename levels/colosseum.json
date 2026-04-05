@@ -1,0 +1,7 @@
+{
+  "name": "Colosseum",
+  "shape": "circle",
+  "pvp": true,
+  "hasEnemy": false,
+  "walls": []
+}

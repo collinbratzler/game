@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arena Display</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      /* themed dynamically via JS */
+      background: var(--bg, #0d0d1a);
+      color: var(--fg, #eee);
+      transition: background 0.4s, color 0.4s;
+    }
+
+    /* Themes */
+    body.theme-dungeon { --bg: #0d0d1a; --fg: #eee; --cell-bg: #14142a; --cell-void: transparent; --legend-color: #666; --title-color: #444; --dim-color: #333; --flash-default: #ff5c5c; }
+    body.theme-arena   { --bg: #b89a5a; --fg: #4a3010; --cell-bg: #dcc890; --cell-void: transparent; --legend-color: #7a5a20; --title-color: #7a5a20; --dim-color: #7a5a20; --flash-default: #e96a6a; }
+
+    #header {
+      position: absolute;
+      top: 14px; left: 0; right: 0;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    #title    { font-size: 0.85rem; letter-spacing: 0.2em; color: var(--title-color); text-transform: uppercase; }
+    #dim-label { font-size: 0.75rem; color: var(--dim-color); }
+
+    #turn-banner {
+      position: absolute;
+      top: 14px; right: 20px;
+      font-size: 0.78rem; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 4px 14px;
+      border-radius: 20px; display: none;
+    }
+    body.theme-dungeon #turn-banner { background: #1e2a1e; color: #4caf7d; border: 1px solid #2a4a2a; }
+    body.theme-arena   #turn-banner { background: #7a5a20; color: #ffeebb; border: 1px solid #a07840; }
+
+    #mode-badge {
+      position: absolute;
+      top: 14px; left: 20px;
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; padding: 3px 12px; border-radius: 20px; display: none;
+    }
+    #mode-badge.freeze { background: rgba(0,0,0,0.2); color: #888; }
+    #mode-badge.free   { background: rgba(74,157,224,0.2); color: #4a9de0; }
+    #mode-badge.turn   { background: rgba(76,175,125,0.2); color: #4caf7d; }
+    #mode-badge.clock  { background: rgba(245,158,66,0.2); color: #f59e42; }
+
+    #grid-wrap {
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    #arena-grid { display: grid; gap: 2px; }
+
+    .cell {
+      background: var(--cell-bg);
+      border-radius: 3px;
+      position: relative;
+      display: flex; flex-wrap: wrap;
+      align-items: center; justify-content: center;
+      gap: 1px;
+    }
+    .cell-wall {
+      background: #555;
+      border-radius: 3px;
+    }
+    body.theme-arena .cell-wall { background: #8a6030; }
+    .cell-void { background: transparent; }
+
+    .cell.attacked {
+      animation: attack-flash 0.45s ease-out forwards;
+    }
+    @keyframes attack-flash {
+      0%   { background: var(--flash-color, var(--flash-default)); box-shadow: 0 0 14px var(--flash-color, var(--flash-default)); }
+      100% { background: var(--cell-bg); box-shadow: none; }
+    }
+
+    .token {
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      flex-shrink: 0;
+    }
+    .enemy-token {
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff;
+      background: #c0392b;
+      box-shadow: 0 0 10px rgba(220,50,30,0.7);
+      flex-shrink: 0;
+    }
+
+    #legend {
+      position: absolute;
+      bottom: 14px; left: 0; right: 0;
+      display: flex; gap: 16px;
+      justify-content: center; flex-wrap: wrap;
+      padding: 0 20px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--legend-color); }
+    .legend-dot  { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Player color palette */
+    .pc-0 { background: #e96a6a; }
+    .pc-1 { background: #f59e42; }
+    .pc-2 { background: #4caf7d; }
+    .pc-3 { background: #4a9de0; }
+    .pc-4 { background: #9b8afb; }
+    .pc-5 { background: #f06292; }
+    .pc-6 { background: #26c6da; }
+    .pc-7 { background: #a3c85a; }
+
+    #empty-msg { font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--legend-color); }
+  </style>
+</head>
+<body class="theme-dungeon">
+
+  <div id="header">
+    <span id="title">Arena</span>
+    <span id="dim-label"></span>
+  </div>
+  <div id="mode-badge"></div>
+  <div id="turn-banner"></div>
+
+  <div id="grid-wrap">
+    <div id="arena-grid"></div>
+    <div id="empty-msg">Waiting for players…</div>
+  </div>
+
+  <div id="legend"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket     = io();
+    const gridEl     = document.getElementById('arena-grid');
+    const emptyMsg   = document.getElementById('empty-msg');
+    const legendEl   = document.getElementById('legend');
+    const dimLabel   = document.getElementById('dim-label');
+    const turnBanner = document.getElementById('turn-banner');
+    const modeBadge  = document.getElementById('mode-badge');
+
+    let currentState = null;
+    let cells        = [];   // cells[y][x] = element or null (void)
+
+    // ── Grid building ────────────────────────────────────────────────
+    function cellSize(cols, rows) {
+      const maxW = (window.innerWidth  - 32) / cols;
+      const maxH = (window.innerHeight - 80) / rows;
+      return Math.max(14, Math.floor(Math.min(maxW, maxH, 72)));
+    }
+
+    function inCircle(x, y, gridSize, radius) {
+      const c = Math.floor(gridSize / 2);
+      return (x - c) * (x - c) + (y - c) * (y - c) <= radius * radius;
+    }
+
+    function buildGrid(state) {
+      const { shape, width, height, gridSize, radius, walls } = state;
+      const cols = shape === 'circle' ? gridSize : width;
+      const rows = shape === 'circle' ? gridSize : height;
+      const sz   = cellSize(cols, rows);
+
+      gridEl.style.gridTemplateColumns = `repeat(${cols}, ${sz}px)`;
+      gridEl.style.gridTemplateRows    = `repeat(${rows}, ${sz}px)`;
+      gridEl.innerHTML = '';
+      cells = [];
+
+      const wallSet = new Set((walls || []).map(w => `${w.x},${w.y}`));
+
+      for (let y = 0; y < rows; y++) {
+        cells[y] = [];
+        for (let x = 0; x < cols; x++) {
+          const div = document.createElement('div');
+          const inBounds = shape === 'circle' ? inCircle(x, y, gridSize, radius) : true;
+          if (!inBounds) {
+            div.className    = 'cell-void';
+            cells[y][x]      = null;
+          } else if (wallSet.has(`${x},${y}`)) {
+            div.className    = 'cell-wall';
+            div.style.width  = `${sz}px`;
+            div.style.height = `${sz}px`;
+            cells[y][x]      = div;
+          } else {
+            div.className    = 'cell';
+            div.dataset.x    = x;
+            div.dataset.y    = y;
+            cells[y][x]      = div;
+          }
+          gridEl.appendChild(div);
+        }
+      }
+
+      // Dimension label
+      dimLabel.textContent = shape === 'circle'
+        ? `⌀ ${radius * 2 + 1}`
+        : `${width} × ${height}`;
+    }
+
+    // ── Rendering ────────────────────────────────────────────────────
+    function renderState(state) {
+      const { shape, width, height, gridSize, radius } = state;
+      const cols = shape === 'circle' ? gridSize : width;
+      const rows = shape === 'circle' ? gridSize : height;
+
+      const needRebuild = !currentState
+        || currentState.shape    !== shape
+        || currentState.width    !== width
+        || currentState.height   !== height
+        || currentState.gridSize !== gridSize
+        || currentState.radius   !== radius
+        || JSON.stringify(currentState.walls) !== JSON.stringify(state.walls);
+
+      if (needRebuild) buildGrid(state);
+      currentState = state;
+
+      // Apply theme
+      document.body.className = shape === 'circle' ? 'theme-arena' : 'theme-dungeon';
+
+      // Clear all tokens
+      cells.forEach(row => row.forEach(cell => { if (cell?.classList.contains('cell')) cell.innerHTML = ''; }));
+
+      // Group by cell position
+      const byCell = {};
+      state.players.forEach(p => {
+        const k = `${p.x},${p.y}`;
+        if (!byCell[k]) byCell[k] = { players: [], enemy: false };
+        byCell[k].players.push(p);
+      });
+      if (state.enemy) {
+        const k = `${state.enemy.x},${state.enemy.y}`;
+        if (!byCell[k]) byCell[k] = { players: [], enemy: false };
+        byCell[k].enemy = true;
+      }
+
+      // Render tokens
+      Object.entries(byCell).forEach(([key, { players: cellPlayers, enemy: hasEnemy }]) => {
+        const [x, y] = key.split(',').map(Number);
+        const cell   = cells[y]?.[x];
+        if (!cell?.classList.contains('cell')) return;
+
+        const n     = cellPlayers.length + (hasEnemy ? 1 : 0);
+        const pct   = n === 1 ? 68 : n <= 4 ? 42 : 27;
+        const fSize = n === 1 ? '0.65em' : n <= 4 ? '0.42em' : '0.28em';
+
+        cellPlayers.forEach(({ name, colorIndex }) => {
+          const t = document.createElement('div');
+          t.className   = `token pc-${colorIndex}`;
+          t.style.width = t.style.height = `${pct}%`;
+          t.style.fontSize = fSize;
+          t.textContent    = name.charAt(0).toUpperCase();
+          cell.appendChild(t);
+        });
+
+        if (hasEnemy) {
+          const t = document.createElement('div');
+          t.className   = 'enemy-token';
+          t.style.width = t.style.height = `${pct}%`;
+          t.style.fontSize = fSize;
+          t.textContent    = '☠';
+          cell.appendChild(t);
+        }
+      });
+
+      // Legend
+      legendEl.innerHTML = '';
+      state.players.forEach(({ name, colorIndex }) => {
+        const item  = document.createElement('div');
+        item.className = 'legend-item';
+        const dot   = document.createElement('div');
+        dot.className  = `legend-dot pc-${colorIndex}`;
+        const label = document.createElement('span');
+        label.textContent = name;
+        item.appendChild(dot); item.appendChild(label);
+        legendEl.appendChild(item);
+      });
+
+      // Turn banner
+      if (state.mode === 'turn' && state.currentTurn) {
+        turnBanner.textContent    = `${state.currentTurn}'s turn`;
+        turnBanner.style.display  = 'block';
+      } else {
+        turnBanner.style.display  = 'none';
+      }
+
+      // Mode badge
+      const modeLabels = { freeze:'Freeze', free:'Free', turn:'Turns', clock:'Clock' };
+      modeBadge.textContent    = modeLabels[state.mode] || state.mode;
+      modeBadge.className      = state.mode;
+      modeBadge.style.display  = 'block';
+
+      // Title
+      const titleEl = document.getElementById('title');
+      if (state.pvp)            titleEl.textContent = 'PvP Arena';
+      else if (state.hasEnemy)  titleEl.textContent = 'Dungeon';
+      else                      titleEl.textContent = 'Arena';
+
+      emptyMsg.style.display   = state.players.length === 0 ? 'block' : 'none';
+      gridEl.style.display     = state.players.length === 0 ? 'none'  : 'grid';
+    }
+
+    // ── Flash ─────────────────────────────────────────────────────────
+    function flashCell(x, y, color) {
+      const cell = cells[y]?.[x];
+      if (!cell?.classList.contains('cell')) return;
+      cell.style.setProperty('--flash-color', color);
+      cell.classList.remove('attacked');
+      void cell.offsetWidth;
+      cell.classList.add('attacked');
+      cell.addEventListener('animationend', () => cell.classList.remove('attacked'), { once: true });
+    }
+
+    // ── Socket ────────────────────────────────────────────────────────
+    socket.on('connect', () => socket.emit('arena:request-state'));
+    socket.on('arena:state',       state  => renderState(state));
+    socket.on('arena:area-attack', ({ positions, color }) => positions.forEach(({ x, y }) => flashCell(x, y, color)));
+
+    window.addEventListener('resize', () => {
+      if (currentState) buildGrid(currentState);
+    });
+  </script>
+</body>
+</html>

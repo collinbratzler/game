@@ -107,8 +107,9 @@
 
     // Some modules have a different view for players vs display screens
     const PLAYER_ROUTES = {
-      'dungeon': 'dungeon-player',
-      'pvp':     'pvp-player',
+      'arena':   'arena-player',
+      'dungeon': 'dungeon-player',  // legacy
+      'pvp':     'pvp-player',      // legacy
     };
 
     socket.on('player:load-module', (moduleName) => {

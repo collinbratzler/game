@@ -250,49 +250,50 @@
       <a class="display-link" href="/display.html" target="_blank">Open Display ↗</a>
     </div>
 
-    <div class="section" id="dungeon-section" style="display:none">
-      <h2>Dungeon Settings</h2>
-      <div class="dungeon-row">
-        <label>W</label>
-        <input id="dungeon-w" type="number" min="2" max="30" value="10" />
-        <label>H</label>
-        <input id="dungeon-h" type="number" min="2" max="30" value="8" />
-        <button class="dungeon-set-btn" id="dungeon-set-btn">Set</button>
-        <span id="dungeon-size-label"></span>
-        <button class="toggle-btn" id="d-mode-free">Free</button>
-        <button class="toggle-btn on" id="d-mode-turn">Turns</button>
-        <button class="toggle-btn" id="d-mode-clock">Clock</button>
-        <span id="d-turn-timer-wrap" style="display:flex;align-items:center;gap:6px;">
-          <button class="toggle-btn" id="dungeon-timer-btn">Timer: OFF</button>
-          <input id="dungeon-timer-secs" type="number" min="3" max="120" value="8" style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
-          <button class="dungeon-set-btn" id="dungeon-timer-set-btn">Set</button>
-        </span>
-        <span id="d-clock-timer-wrap" style="display:none;align-items:center;gap:6px;">
-          <label style="font-size:0.78rem;color:#555;">Clock secs</label>
-          <input id="dungeon-clock-secs" type="number" min="3" max="120" value="5" style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
-          <button class="dungeon-set-btn" id="dungeon-clock-set-btn">Set</button>
-        </span>
-        <button id="dungeon-reset-btn" style="padding:5px 14px;background:#3a1a1a;border:1px solid #6a2a2a;color:#e96a6a;border-radius:4px;cursor:pointer;font-family:monospace;font-size:0.82rem;">Reset ↺</button>
-      </div>
-    </div>
+    <div class="section" id="arena-section" style="display:none">
+      <h2>Arena Settings</h2>
 
-    <div class="section" id="pvp-section" style="display:none">
-      <h2>PvP Settings</h2>
+      <!-- Row 1: Shape + size + rule toggles -->
+      <div class="dungeon-row" style="margin-bottom:8px;">
+        <button class="toggle-btn on" id="a-shape-rect">Rect</button>
+        <button class="toggle-btn"    id="a-shape-circle">Circle</button>
+        <span id="a-size-wrap" style="display:flex;align-items:center;gap:6px;">
+          <label>W</label>
+          <input id="arena-w" type="number" min="2" max="30" value="10" style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
+          <label>H</label>
+          <input id="arena-h" type="number" min="2" max="30" value="8"  style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
+          <button class="dungeon-set-btn" id="arena-size-btn">Set</button>
+        </span>
+        <button class="toggle-btn" id="a-pvp-btn">PvP: OFF</button>
+        <button class="toggle-btn on" id="a-enemy-btn">Enemy: ON</button>
+      </div>
+
+      <!-- Row 2: Mode buttons + timer options -->
+      <div class="dungeon-row" style="margin-bottom:8px;">
+        <button class="toggle-btn on" id="a-mode-freeze">Freeze</button>
+        <button class="toggle-btn"    id="a-mode-free">Free</button>
+        <button class="toggle-btn"    id="a-mode-turn">Turns</button>
+        <button class="toggle-btn"    id="a-mode-clock">Clock</button>
+        <span id="a-turn-timer-wrap" style="display:none;align-items:center;gap:6px;">
+          <button class="toggle-btn" id="arena-timer-btn">Timer: OFF</button>
+          <input id="arena-timer-secs" type="number" min="3" max="120" value="8" style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
+          <button class="dungeon-set-btn" id="arena-timer-set-btn">Set</button>
+        </span>
+        <span id="a-clock-timer-wrap" style="display:none;align-items:center;gap:6px;">
+          <label style="font-size:0.78rem;color:#555;">secs</label>
+          <input id="arena-clock-secs" type="number" min="3" max="120" value="5" style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
+          <button class="dungeon-set-btn" id="arena-clock-set-btn">Set</button>
+        </span>
+      </div>
+
+      <!-- Row 3: Level loader + reset -->
       <div class="dungeon-row">
-        <button class="toggle-btn" id="p-mode-free">Free</button>
-        <button class="toggle-btn on" id="p-mode-turn">Turns</button>
-        <button class="toggle-btn" id="p-mode-clock">Clock</button>
-        <span id="p-turn-timer-wrap" style="display:flex;align-items:center;gap:6px;">
-          <button class="toggle-btn" id="pvp-timer-btn">Timer: OFF</button>
-          <input id="pvp-timer-secs" type="number" min="3" max="120" value="8" style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
-          <button class="dungeon-set-btn" id="pvp-timer-set-btn">Set</button>
-        </span>
-        <span id="p-clock-timer-wrap" style="display:none;align-items:center;gap:6px;">
-          <label style="font-size:0.78rem;color:#555;">Clock secs</label>
-          <input id="pvp-clock-secs" type="number" min="3" max="120" value="5" style="width:46px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.82rem;text-align:center;" />
-          <button class="dungeon-set-btn" id="pvp-clock-set-btn">Set</button>
-        </span>
-        <button id="pvp-reset-btn" style="padding:5px 14px;background:#3a1a1a;border:1px solid #6a2a2a;color:#e96a6a;border-radius:4px;cursor:pointer;font-family:monospace;font-size:0.82rem;">Reset ↺</button>
+        <label style="font-size:0.78rem;color:#555;">Level</label>
+        <select id="arena-level-select" class="minigame-select">
+          <option value="">— select —</option>
+        </select>
+        <button class="dungeon-set-btn" id="arena-load-btn">Load</button>
+        <button id="arena-reset-btn" style="padding:5px 14px;background:#3a1a1a;border:1px solid #6a2a2a;color:#e96a6a;border-radius:4px;cursor:pointer;font-family:monospace;font-size:0.82rem;">Reset ↺</button>
       </div>
     </div>
   </div>
@@ -308,8 +309,7 @@
     const MODULES = [
       { id: 'waiting',  label: 'Waiting' },
       { id: 'chat',     label: 'Chat' },
-      { id: 'dungeon',  label: 'Dungeon' },
-      { id: 'pvp',      label: 'PvP' },
+      { id: 'arena',    label: 'Arena' },
       { id: 'module-a', label: 'Module A' },
       { id: 'module-b', label: 'Module B' },
     ];
@@ -327,10 +327,6 @@
     const noPlayersEl     = document.getElementById('no-players');
     const currentModuleEl = document.getElementById('current-module-name');
     const moduleGrid      = document.getElementById('module-grid');
-    const dungeonWInput   = document.getElementById('dungeon-w');
-    const dungeonHInput   = document.getElementById('dungeon-h');
-    const dungeonSetBtn   = document.getElementById('dungeon-set-btn');
-    const dungeonSizeLabel= document.getElementById('dungeon-size-label');
     const activityLog     = document.getElementById('activity-log');
 
     // Build module buttons
@@ -356,80 +352,111 @@
       socket.emit('host:send-minigame-all', { minigame: sendAllSelect.value });
     });
 
-    dungeonSetBtn.addEventListener('click', () => {
-      const width  = parseInt(dungeonWInput.value, 10);
-      const height = parseInt(dungeonHInput.value, 10);
-      if (!isNaN(width) && !isNaN(height)) {
-        socket.emit('host:dungeon-resize', { width, height });
-      }
+    // ── Arena controls ────────────────────────────────────────────────
+    const aModeBtns = {
+      freeze: document.getElementById('a-mode-freeze'),
+      free:   document.getElementById('a-mode-free'),
+      turn:   document.getElementById('a-mode-turn'),
+      clock:  document.getElementById('a-mode-clock'),
+    };
+    const aShapeBtns   = { rect: document.getElementById('a-shape-rect'), circle: document.getElementById('a-shape-circle') };
+    const aSizeWrap    = document.getElementById('a-size-wrap');
+    const arenaWInput  = document.getElementById('arena-w');
+    const arenaHInput  = document.getElementById('arena-h');
+    const aSizeBtn     = document.getElementById('arena-size-btn');
+    const aPvpBtn      = document.getElementById('a-pvp-btn');
+    const aEnemyBtn    = document.getElementById('a-enemy-btn');
+    const aTimerBtn    = document.getElementById('arena-timer-btn');
+    const aTimerSecs   = document.getElementById('arena-timer-secs');
+    const aTimerSetBtn = document.getElementById('arena-timer-set-btn');
+    const aClockSecs   = document.getElementById('arena-clock-secs');
+    const aClockSetBtn = document.getElementById('arena-clock-set-btn');
+    const aTurnWrap    = document.getElementById('a-turn-timer-wrap');
+    const aClockWrap   = document.getElementById('a-clock-timer-wrap');
+    const aLevelSelect = document.getElementById('arena-level-select');
+    const aLoadBtn     = document.getElementById('arena-load-btn');
+
+    // Shape
+    Object.entries(aShapeBtns).forEach(([shape, btn]) => {
+      btn.addEventListener('click', () => {
+        socket.emit('host:arena-config', { shape });
+      });
     });
 
-    // ── Dungeon mode buttons ──
-    const dModeBtns = { free: document.getElementById('d-mode-free'), turn: document.getElementById('d-mode-turn'), clock: document.getElementById('d-mode-clock') };
-    const dungeonTimerBtn    = document.getElementById('dungeon-timer-btn');
-    const dungeonTimerSecs   = document.getElementById('dungeon-timer-secs');
-    const dungeonTimerSetBtn = document.getElementById('dungeon-timer-set-btn');
-    const dungeonClockSecs   = document.getElementById('dungeon-clock-secs');
-    const dungeonClockSetBtn = document.getElementById('dungeon-clock-set-btn');
-    const dTurnWrap  = document.getElementById('d-turn-timer-wrap');
-    const dClockWrap = document.getElementById('d-clock-timer-wrap');
-
-    Object.entries(dModeBtns).forEach(([mode, btn]) => {
-      btn.addEventListener('click', () => socket.emit('host:dungeon-mode', mode));
-    });
-    dungeonTimerBtn.addEventListener('click', () => socket.emit('host:dungeon-timer-toggle'));
-    dungeonTimerSetBtn.addEventListener('click', () => {
-      const v = parseInt(dungeonTimerSecs.value, 10);
-      if (!isNaN(v)) socket.emit('host:dungeon-timer-set', { turnSecs: v });
-    });
-    dungeonClockSetBtn.addEventListener('click', () => {
-      const v = parseInt(dungeonClockSecs.value, 10);
-      if (!isNaN(v)) socket.emit('host:dungeon-timer-set', { clockSecs: v });
-    });
-    document.getElementById('dungeon-reset-btn').addEventListener('click', () => socket.emit('host:dungeon-reset'));
-
-    socket.on('dungeon:state', ({ mode, timerEnabled, timerSeconds, clockSeconds }) => {
-      Object.entries(dModeBtns).forEach(([m, btn]) => btn.classList.toggle('on', m === mode));
-      dTurnWrap.style.display  = mode === 'turn'  ? 'flex' : 'none';
-      dClockWrap.style.display = mode === 'clock' ? 'flex' : 'none';
-      dungeonTimerBtn.textContent = `Timer: ${timerEnabled ? 'ON' : 'OFF'}`;
-      dungeonTimerBtn.classList.toggle('on', timerEnabled);
-      if (timerSeconds != null) dungeonTimerSecs.value = timerSeconds;
-      if (clockSeconds != null) dungeonClockSecs.value = clockSeconds;
+    // Size (only applies to rect)
+    aSizeBtn.addEventListener('click', () => {
+      const w = parseInt(arenaWInput.value, 10), h = parseInt(arenaHInput.value, 10);
+      if (!isNaN(w) && !isNaN(h)) socket.emit('host:arena-config', { width: w, height: h });
     });
 
-    // ── PvP mode buttons ──
-    const pModeBtns = { free: document.getElementById('p-mode-free'), turn: document.getElementById('p-mode-turn'), clock: document.getElementById('p-mode-clock') };
-    const pvpTimerBtn    = document.getElementById('pvp-timer-btn');
-    const pvpTimerSecs   = document.getElementById('pvp-timer-secs');
-    const pvpTimerSetBtn = document.getElementById('pvp-timer-set-btn');
-    const pvpClockSecs   = document.getElementById('pvp-clock-secs');
-    const pvpClockSetBtn = document.getElementById('pvp-clock-set-btn');
-    const pTurnWrap  = document.getElementById('p-turn-timer-wrap');
-    const pClockWrap = document.getElementById('p-clock-timer-wrap');
+    // PvP / Enemy toggles (optimistic UI, confirmed by server state)
+    let arenaIsPvp = false, arenaHasEnemy = true;
+    aPvpBtn.addEventListener('click', () => {
+      arenaIsPvp = !arenaIsPvp;
+      socket.emit('host:arena-config', { pvp: arenaIsPvp });
+    });
+    aEnemyBtn.addEventListener('click', () => {
+      arenaHasEnemy = !arenaHasEnemy;
+      socket.emit('host:arena-config', { hasEnemy: arenaHasEnemy });
+    });
 
-    Object.entries(pModeBtns).forEach(([mode, btn]) => {
-      btn.addEventListener('click', () => socket.emit('host:pvp-mode', mode));
+    // Mode buttons
+    Object.entries(aModeBtns).forEach(([mode, btn]) => {
+      btn.addEventListener('click', () => socket.emit('host:arena-mode', mode));
     });
-    pvpTimerBtn.addEventListener('click', () => socket.emit('host:pvp-timer-toggle'));
-    pvpTimerSetBtn.addEventListener('click', () => {
-      const v = parseInt(pvpTimerSecs.value, 10);
-      if (!isNaN(v)) socket.emit('host:pvp-timer-set', { turnSecs: v });
-    });
-    pvpClockSetBtn.addEventListener('click', () => {
-      const v = parseInt(pvpClockSecs.value, 10);
-      if (!isNaN(v)) socket.emit('host:pvp-timer-set', { clockSecs: v });
-    });
-    document.getElementById('pvp-reset-btn').addEventListener('click', () => socket.emit('host:pvp-reset'));
 
-    socket.on('pvp:state', ({ mode, timerEnabled, timerSeconds, clockSeconds }) => {
-      Object.entries(pModeBtns).forEach(([m, btn]) => btn.classList.toggle('on', m === mode));
-      pTurnWrap.style.display  = mode === 'turn'  ? 'flex' : 'none';
-      pClockWrap.style.display = mode === 'clock' ? 'flex' : 'none';
-      pvpTimerBtn.textContent = `Timer: ${timerEnabled ? 'ON' : 'OFF'}`;
-      pvpTimerBtn.classList.toggle('on', timerEnabled);
-      if (timerSeconds != null) pvpTimerSecs.value = timerSeconds;
-      if (clockSeconds != null) pvpClockSecs.value = clockSeconds;
+    // Turn timer
+    aTimerBtn.addEventListener('click', () => socket.emit('host:arena-timer-toggle'));
+    aTimerSetBtn.addEventListener('click', () => {
+      const v = parseInt(aTimerSecs.value, 10);
+      if (!isNaN(v)) socket.emit('host:arena-timer-set', { turnSecs: v });
+    });
+    aClockSetBtn.addEventListener('click', () => {
+      const v = parseInt(aClockSecs.value, 10);
+      if (!isNaN(v)) socket.emit('host:arena-timer-set', { clockSecs: v });
+    });
+
+    // Level loader
+    fetch('/api/levels').then(r => r.json()).then(levels => {
+      levels.forEach(({ id, name }) => {
+        const opt = document.createElement('option');
+        opt.value = id; opt.textContent = name;
+        aLevelSelect.appendChild(opt);
+      });
+    });
+    aLoadBtn.addEventListener('click', () => {
+      if (aLevelSelect.value) socket.emit('host:arena-load-level', aLevelSelect.value);
+    });
+
+    // Reset
+    document.getElementById('arena-reset-btn').addEventListener('click', () => socket.emit('host:arena-reset'));
+
+    // Sync UI from server state
+    socket.on('arena:state', ({ shape, width, height, pvp, hasEnemy, mode, timerEnabled, timerSeconds, clockSeconds }) => {
+      // Shape buttons
+      Object.entries(aShapeBtns).forEach(([s, btn]) => btn.classList.toggle('on', s === shape));
+      aSizeWrap.style.display = shape === 'rect' ? 'flex' : 'none';
+      if (width  != null) arenaWInput.value = width;
+      if (height != null) arenaHInput.value = height;
+
+      // PvP / Enemy
+      arenaIsPvp    = pvp;
+      arenaHasEnemy = hasEnemy;
+      aPvpBtn.textContent = `PvP: ${pvp ? 'ON' : 'OFF'}`;
+      aPvpBtn.classList.toggle('on', pvp);
+      aEnemyBtn.textContent = `Enemy: ${hasEnemy ? 'ON' : 'OFF'}`;
+      aEnemyBtn.classList.toggle('on', hasEnemy);
+
+      // Mode buttons
+      Object.entries(aModeBtns).forEach(([m, btn]) => btn.classList.toggle('on', m === mode));
+      aTurnWrap.style.display  = mode === 'turn'  ? 'flex' : 'none';
+      aClockWrap.style.display = mode === 'clock' ? 'flex' : 'none';
+
+      // Timer
+      aTimerBtn.textContent = `Timer: ${timerEnabled ? 'ON' : 'OFF'}`;
+      aTimerBtn.classList.toggle('on', timerEnabled);
+      if (timerSeconds != null) aTimerSecs.value = timerSeconds;
+      if (clockSeconds != null) aClockSecs.value = clockSeconds;
     });
 
     const CLASSES = [
@@ -533,22 +560,13 @@
       statusEl.className = 'disconnected';
     });
 
-    socket.on('host:state-update', ({ players, currentModule, dungeon }) => {
+    socket.on('host:state-update', ({ players, currentModule }) => {
       buildPlayerList(players);
-
       currentModuleEl.textContent = currentModule;
       document.querySelectorAll('.module-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.moduleId === currentModule);
       });
-
-      document.getElementById('dungeon-section').style.display = currentModule === 'dungeon' ? '' : 'none';
-      document.getElementById('pvp-section').style.display     = currentModule === 'pvp'     ? '' : 'none';
-
-      if (dungeon) {
-        dungeonWInput.value = dungeon.width;
-        dungeonHInput.value = dungeon.height;
-        dungeonSizeLabel.textContent = `${dungeon.width}×${dungeon.height}`;
-      }
+      document.getElementById('arena-section').style.display = currentModule === 'arena' ? '' : 'none';
     });
 
     socket.on('host:log-update', (entries) => {

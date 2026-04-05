@@ -1,0 +1,9 @@
+{
+  "name": "Gauntlet",
+  "shape": "rect",
+  "width": 14,
+  "height": 10,
+  "pvp": true,
+  "hasEnemy": true,
+  "walls": []
+}

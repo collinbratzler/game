@@ -1,0 +1,9 @@
+{
+  "name": "Classic Dungeon",
+  "shape": "rect",
+  "width": 10,
+  "height": 8,
+  "pvp": false,
+  "hasEnemy": true,
+  "walls": []
+}

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arena</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--class-bg, #f7f6f3);
+      transition: background 0.4s;
+      color: #1a1a1a;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+      user-select: none;
+    }
+
+    /* ── Header ── */
+    #header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #player-info { display: flex; align-items: center; gap: 10px; }
+    #player-dot  { width: 14px; height: 14px; border-radius: 50%; background: #9b8afb; flex-shrink: 0; }
+    #player-name { font-size: 1rem; font-weight: 600; }
+    #player-pos  { font-size: 0.8rem; color: #aaa; background: #f0f0ec; padding: 3px 8px; border-radius: 20px; }
+
+    #conn-status { font-size: 0.75rem; color: #4caf50; }
+    #conn-status.off { color: #f44336; }
+
+    #mode-badge {
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 3px 10px; border-radius: 20px; display: none;
+    }
+    #mode-badge.freeze { background: #f0f0ec; color: #888; }
+    #mode-badge.free   { background: #dff0ff; color: #2a6090; }
+    #mode-badge.turn   { background: #e8f5e9; color: #2e7d32; }
+    #mode-badge.clock  { background: #fff3cd; color: #856404; }
+
+    /* ── Turn status ── */
+    #turn-status {
+      width: 100%; text-align: center;
+      padding: 8px 16px; border-radius: 10px;
+      font-size: 0.9rem; font-weight: 600; letter-spacing: 0.04em;
+      display: none;
+    }
+    #turn-status.my-turn { background: #e8f5e9; color: #2e7d32; }
+    #turn-status.waiting { background: #f0f0ec; color: #aaa; font-weight: 400; }
+    #turn-status.clock   { background: #fff3cd; color: #856404; }
+
+    /* ── Timer bar ── */
+    #timer-bar-wrap {
+      width: 100%; max-width: 240px; height: 6px;
+      background: #e8e6e1; border-radius: 3px; display: none;
+    }
+    #timer-bar {
+      height: 100%; border-radius: 3px; background: #4caf50;
+      transition: width 0.9s linear, background 0.3s;
+    }
+
+    /* ── Controls ── */
+    #controls {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 24px;
+      flex: 1; justify-content: center; width: 100%;
+    }
+
+    /* ── D-pad ── */
+    #dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 72px);
+      grid-template-rows: repeat(3, 72px);
+      gap: 8px;
+    }
+    .dpad-btn {
+      width: 72px; height: 72px; border-radius: 14px;
+      border: 1.5px solid #e0ddd6; background: #fff;
+      font-size: 1.6rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      touch-action: manipulation;
+      transition: background 0.1s, transform 0.1s;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .dpad-btn:active { background: #f0eeff; transform: scale(0.93); }
+    .dpad-btn.empty  { border: none; background: transparent; box-shadow: none; pointer-events: none; }
+    .dpad-btn.selected {
+      background: #e8eeff; border-color: #4a9de0;
+      color: #4a9de0; box-shadow: 0 0 0 2px rgba(74,157,224,0.3);
+    }
+
+    /* Stay/attack center button */
+    #btn-stay { font-size: 2rem; color: #888; }
+    #btn-stay:active { background: #f0f0ec; color: #555; }
+
+    /* Color palette */
+    .pc-0 { background: #e96a6a; }
+    .pc-1 { background: #f59e42; }
+    .pc-2 { background: #4caf7d; }
+    .pc-3 { background: #4a9de0; }
+    .pc-4 { background: #9b8afb; }
+    .pc-5 { background: #f06292; }
+    .pc-6 { background: #26c6da; }
+    .pc-7 { background: #a3c85a; }
+  </style>
+</head>
+<body>
+
+  <div id="header">
+    <div id="player-info">
+      <div id="player-dot"></div>
+      <span id="player-name">—</span>
+      <span id="player-pos">—</span>
+    </div>
+    <span id="mode-badge"></span>
+    <span id="conn-status" class="off">connecting</span>
+  </div>
+
+  <div id="controls">
+    <div id="turn-status"></div>
+    <div id="timer-bar-wrap"><div id="timer-bar"></div></div>
+    <div id="dpad">
+      <div class="dpad-btn empty"></div>
+      <button class="dpad-btn" id="btn-up">↑</button>
+      <div class="dpad-btn empty"></div>
+
+      <button class="dpad-btn" id="btn-left">←</button>
+      <button class="dpad-btn" id="btn-stay">•</button>
+      <button class="dpad-btn" id="btn-right">→</button>
+
+      <div class="dpad-btn empty"></div>
+      <button class="dpad-btn" id="btn-down">↓</button>
+      <div class="dpad-btn empty"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const playerName = new URLSearchParams(location.search).get('name') || 'Unknown';
+
+    const socket = io();
+
+    const playerNameEl = document.getElementById('player-name');
+    const playerPosEl  = document.getElementById('player-pos');
+    const playerDotEl  = document.getElementById('player-dot');
+    const connStatusEl = document.getElementById('conn-status');
+    const turnStatusEl = document.getElementById('turn-status');
+    const timerWrap    = document.getElementById('timer-bar-wrap');
+    const timerBar     = document.getElementById('timer-bar');
+    const modeBadge    = document.getElementById('mode-badge');
+
+    const dpadBtns = ['btn-up','btn-down','btn-left','btn-right','btn-stay']
+      .map(id => document.getElementById(id));
+    const actionMap = { 'btn-up':'up', 'btn-down':'down', 'btn-left':'left', 'btn-right':'right', 'btn-stay':'stay' };
+
+    function setControlsEnabled(enabled) {
+      dpadBtns.forEach(b => b.disabled = !enabled);
+    }
+
+    const CLASS_BG = { barbarian: '#fce8e8', wizard: '#e8eeff', healer: '#fefce8' };
+    function applyClass(cls) {
+      document.documentElement.style.setProperty('--class-bg', CLASS_BG[cls] || '#f7f6f3');
+    }
+
+    function updateModeBadge(mode) {
+      const labels = { freeze:'Freeze', free:'Free', turn:'Turns', clock:'Clock' };
+      modeBadge.textContent = labels[mode] || mode;
+      modeBadge.className   = mode;
+      modeBadge.style.display = 'inline-block';
+    }
+
+    playerNameEl.textContent = playerName;
+
+    // D-pad button wiring
+    document.getElementById('btn-up').addEventListener('click',    () => socket.emit('arena:move', 'up'));
+    document.getElementById('btn-down').addEventListener('click',  () => socket.emit('arena:move', 'down'));
+    document.getElementById('btn-left').addEventListener('click',  () => socket.emit('arena:move', 'left'));
+    document.getElementById('btn-right').addEventListener('click', () => socket.emit('arena:move', 'right'));
+    document.getElementById('btn-stay').addEventListener('click',  () => socket.emit('arena:attack'));
+
+    // ── Socket events ─────────────────────────────────────────────────
+    socket.on('connect', () => {
+      connStatusEl.textContent = 'connected';
+      connStatusEl.className   = '';
+      setControlsEnabled(true);
+      socket.emit('arena:join', playerName);
+    });
+
+    socket.on('disconnect', () => {
+      connStatusEl.textContent = 'reconnecting';
+      connStatusEl.className   = 'off';
+      setControlsEnabled(false);
+    });
+
+    socket.on('arena:joined', ({ x, y, colorIndex, playerClass }) => {
+      playerPosEl.textContent = `${x}, ${y}`;
+      playerDotEl.className   = `pc-${colorIndex}`;
+      playerDotEl.style.background = '';
+      applyClass(playerClass || 'barbarian');
+    });
+
+    socket.on('arena:class-update', (cls) => applyClass(cls));
+
+    let currentMode = 'freeze';
+
+    socket.on('arena:state', (st) => {
+      const me = st.players.find(p => p.name === playerName);
+      if (me) playerPosEl.textContent = `${me.x}, ${me.y}`;
+      currentMode = st.mode;
+      updateModeBadge(st.mode);
+
+      if (st.mode === 'freeze') {
+        turnStatusEl.style.display = 'block';
+        turnStatusEl.textContent   = 'Frozen';
+        turnStatusEl.className     = 'waiting';
+        setControlsEnabled(false);
+        timerWrap.style.display    = 'none';
+      } else if (st.mode === 'turn') {
+        const myTurn = st.currentTurn === playerName;
+        turnStatusEl.style.display = 'block';
+        turnStatusEl.textContent   = myTurn ? 'Your turn!' : `Waiting for ${st.currentTurn}…`;
+        turnStatusEl.className     = myTurn ? 'my-turn' : 'waiting';
+        setControlsEnabled(myTurn);
+        timerWrap.style.display    = (myTurn && st.timerEnabled) ? 'block' : 'none';
+      } else if (st.mode === 'clock') {
+        turnStatusEl.style.display = 'block';
+        turnStatusEl.className     = 'clock';
+        if (!turnStatusEl.textContent.startsWith('Queued'))
+          turnStatusEl.textContent = 'Choose your action!';
+        setControlsEnabled(true);
+      } else {
+        // free
+        turnStatusEl.style.display = 'none';
+        timerWrap.style.display    = 'none';
+        setControlsEnabled(true);
+      }
+    });
+
+    // Clock mode: highlight selected button
+    let selectedAction = 'stay';
+
+    function updateSelectedHighlight(action) {
+      selectedAction = action;
+      Object.entries(actionMap).forEach(([id, act]) => {
+        document.getElementById(id)?.classList.toggle('selected', act === action);
+      });
+      turnStatusEl.textContent = action === 'stay' ? 'Queued: Stay & Attack' : `Queued: Move ${action}`;
+    }
+
+    function clearSelectedHighlight() {
+      Object.keys(actionMap).forEach(id => document.getElementById(id)?.classList.remove('selected'));
+      turnStatusEl.textContent = 'Choose your action!';
+    }
+
+    socket.on('arena:action-selected', (action) => {
+      if (currentMode === 'clock') updateSelectedHighlight(action);
+    });
+
+    socket.on('arena:clock-round-end', () => {
+      clearSelectedHighlight();
+    });
+
+    socket.on('arena:clock-timer', ({ timeLeft, total }) => {
+      if (timeLeft <= 0) { timerWrap.style.display = 'none'; return; }
+      timerWrap.style.display = 'block';
+      const pct = (timeLeft / total) * 100;
+      timerBar.style.width      = `${pct}%`;
+      timerBar.style.background = timeLeft <= 2 ? '#e96a6a'
+        : timeLeft <= Math.floor(total / 2) ? '#f59e42' : '#a0c85a';
+      if (currentMode === 'clock') {
+        turnStatusEl.style.display = 'block';
+        turnStatusEl.className     = 'clock';
+      }
+    });
+
+    socket.on('arena:turn-timer', ({ timeLeft, total }) => {
+      if (timeLeft <= 0) { timerWrap.style.display = 'none'; return; }
+      timerWrap.style.display = 'block';
+      const pct = (timeLeft / total) * 100;
+      timerBar.style.width      = `${pct}%`;
+      timerBar.style.background = timeLeft <= 3 ? '#e96a6a'
+        : timeLeft <= Math.floor(total / 2) ? '#f59e42' : '#4caf50';
+    });
+  </script>
+</body>
+</html>
