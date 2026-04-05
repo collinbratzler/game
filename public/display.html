@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Display</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; height: 100vh; display: flex; flex-direction: column; }
+
+    #module-frame {
+      flex: 1;
+      border: none;
+      width: 100%;
+    }
+
+    #status-bar {
+      position: fixed;
+      bottom: 10px;
+      right: 14px;
+      font-family: monospace;
+      font-size: 0.7rem;
+      color: #333;
+      pointer-events: none;
+    }
+    #status-bar.disconnected { color: #555; }
+  </style>
+</head>
+<body>
+  <iframe id="module-frame" src="/modules/waiting.html"></iframe>
+  <div id="status-bar">display</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const moduleFrame = document.getElementById('module-frame');
+    const statusBar   = document.getElementById('status-bar');
+
+    function loadModule(moduleName) {
+      const url = `/modules/${moduleName}.html`;
+      if (moduleFrame.src !== url) moduleFrame.src = url;
+    }
+
+    socket.on('connect', () => {
+      statusBar.className = '';
+      socket.emit('host:request-state');
+    });
+
+    socket.on('disconnect', () => {
+      statusBar.className = 'disconnected';
+    });
+
+    socket.on('display:load-module', (moduleName) => {
+      loadModule(moduleName);
+    });
+
+    socket.on('host:state-update', ({ currentDisplay }) => {
+      loadModule(currentDisplay);
+    });
+  </script>
+</body>
+</html>

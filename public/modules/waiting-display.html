@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waiting</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0d0d1a;
+      color: #eee;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 80px;
+      padding: 40px;
+    }
+
+    /* QR side */
+    #qr-side {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    #qr-wrap {
+      background: #f7f6f3;
+      border-radius: 20px;
+      padding: 18px;
+      width: 220px;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #qr-wrap img {
+      width: 100%;
+      height: 100%;
+    }
+    #qr-wrap .qr-loading {
+      font-size: 0.8rem;
+      color: #aaa;
+      font-family: monospace;
+    }
+
+    #join-label {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    #join-url {
+      font-size: 0.78rem;
+      color: #444;
+      font-family: monospace;
+      text-align: center;
+    }
+
+    /* Divider */
+    #divider {
+      width: 1px;
+      height: 200px;
+      background: #1e1e2e;
+    }
+
+    /* Players side */
+    #players-side {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 200px;
+    }
+
+    #players-heading {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #333;
+    }
+
+    #player-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #player-list li {
+      font-size: 1rem;
+      font-weight: 500;
+      color: #aaa;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #player-list li::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      flex-shrink: 0;
+    }
+
+    #no-players {
+      font-size: 0.85rem;
+      color: #2a2a3a;
+      font-style: italic;
+    }
+
+    #player-count {
+      font-size: 0.75rem;
+      color: #2a2a3a;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="qr-side">
+    <div id="qr-wrap">
+      <span class="qr-loading">loading…</span>
+    </div>
+    <div id="join-label">Scan to join</div>
+    <div id="join-url">—</div>
+  </div>
+
+  <div id="divider"></div>
+
+  <div id="players-side">
+    <div id="players-heading">Players joined</div>
+    <ul id="player-list"></ul>
+    <div id="no-players">Waiting for players…</div>
+    <div id="player-count"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const qrWrap     = document.getElementById('qr-wrap');
+    const joinUrlEl  = document.getElementById('join-url');
+    const playerList = document.getElementById('player-list');
+    const noPlayers  = document.getElementById('no-players');
+    const countEl    = document.getElementById('player-count');
+
+    // Load QR code and join URL
+    fetch('/api/join-url')
+      .then(r => r.json())
+      .then(({ url }) => {
+        joinUrlEl.textContent = url;
+        const img = document.createElement('img');
+        img.src = '/api/qr.svg';
+        img.alt = 'QR code to join';
+        qrWrap.innerHTML = '';
+        qrWrap.appendChild(img);
+      });
+
+    function renderPlayers(players) {
+      playerList.innerHTML = '';
+      if (players.length === 0) {
+        noPlayers.style.display = 'block';
+        countEl.textContent = '';
+      } else {
+        noPlayers.style.display = 'none';
+        players.forEach(({ name }) => {
+          const li = document.createElement('li');
+          li.textContent = name;
+          playerList.appendChild(li);
+        });
+        countEl.textContent = `${players.length} player${players.length !== 1 ? 's' : ''}`;
+      }
+    }
+
+    socket.on('connect', () => {
+      socket.emit('host:request-state');
+    });
+
+    socket.on('host:state-update', ({ players }) => {
+      renderPlayers(players);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Reflex Test Lv.2</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f7f6f3;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px max(32px, env(safe-area-inset-bottom));
+      user-select: none;
+      gap: 24px;
+    }
+
+    #title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #bbb;
+    }
+
+    /* Target color indicator */
+    #target-display {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      background: #fff;
+      border: 1.5px solid #e8e6e1;
+      border-radius: 40px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #555;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #target-display.visible { opacity: 1; }
+    #target-label { font-weight: 700; }
+    #target-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* The reaction button */
+    #react-btn {
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      touch-action: manipulation;
+      transition: background 0.07s, box-shadow 0.15s, transform 0.08s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      line-height: 1.2;
+    }
+
+    #react-btn.idle {
+      background: #1a1a1a;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+    #react-btn.idle:active { transform: scale(0.96); }
+
+    #react-btn.running {
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    #react-btn.running:active { transform: scale(0.95); }
+
+    #react-btn.fail {
+      background: #e96a6a !important;
+      box-shadow: 0 0 48px rgba(233,106,106,0.4);
+      cursor: default;
+    }
+    #react-btn.success {
+      box-shadow: 0 0 56px rgba(0,0,0,0.25);
+      cursor: default;
+    }
+
+    #instruction {
+      font-size: 0.9rem;
+      color: #aaa;
+      text-align: center;
+      min-height: 1.4em;
+    }
+
+    #result-label {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      min-height: 2.5rem;
+      color: #1a1a1a;
+    }
+    #result-label.good { color: #4a9de0; }
+    #result-label.bad  { color: #e96a6a; }
+  </style>
+</head>
+<body>
+
+  <div id="title">Reflex Test · Level 2</div>
+
+  <div id="target-display">
+    Click when: <span id="target-label">—</span>
+    <span id="target-swatch"></span>
+  </div>
+
+  <button id="react-btn" class="idle">Start</button>
+
+  <div id="instruction">Remember the target color, then tap Start</div>
+  <div id="result-label"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const playerName = new URLSearchParams(location.search).get('name') || 'Unknown';
+    const socket = io();
+
+    const COLORS = [
+      { id: 'green',  label: 'Green',  bg: '#4caf7d' },
+      { id: 'orange', label: 'Orange', bg: '#f59e42' },
+      { id: 'purple', label: 'Purple', bg: '#9b8afb' },
+    ];
+
+    const btn          = document.getElementById('react-btn');
+    const instruction  = document.getElementById('instruction');
+    const resultLabel  = document.getElementById('result-label');
+    const targetDisplay= document.getElementById('target-display');
+    const targetLabel  = document.getElementById('target-label');
+    const targetSwatch = document.getElementById('target-swatch');
+
+    let phase = 'idle';
+    let target = null;
+    let currentColor = null;
+    let colorChangeTime = null;
+    let cycleTimer = null;
+
+    // Pick a random target color and show it
+    function pickTarget() {
+      target = COLORS[Math.floor(Math.random() * COLORS.length)];
+      targetLabel.textContent = target.label;
+      targetLabel.style.color = target.bg;
+      targetSwatch.style.background = target.bg;
+      targetDisplay.classList.add('visible');
+    }
+
+    function showGray() {
+      currentColor = null;
+      btn.style.background = '#c8c6c2';
+      btn.textContent = '';
+    }
+
+    function showColor(color) {
+      currentColor = color;
+      colorChangeTime = Date.now();
+      btn.style.background = color.bg;
+      btn.textContent = '';
+    }
+
+    function scheduleNext() {
+      // Pick next color — target ~1 in 4 flashes
+      const useTarget = Math.random() < 0.25;
+      const next = useTarget
+        ? target
+        : COLORS.filter(c => c.id !== target.id)[Math.floor(Math.random() * (COLORS.length - 1))];
+
+      showGray();
+      cycleTimer = setTimeout(() => {
+        if (phase !== 'running') return;
+        showColor(next);
+        // If this is the target, stay on screen — don't schedule next
+        if (next.id === target.id) return;
+        // Otherwise flash briefly then back to gray
+        cycleTimer = setTimeout(() => {
+          if (phase !== 'running') return;
+          scheduleNext();
+        }, 800 + Math.random() * 600); // 800–1400ms
+      }, 450 + Math.random() * 350); // 450–800ms gray gap
+    }
+
+    function startGame() {
+      phase = 'running';
+      btn.className = 'running';
+      instruction.textContent = 'Tap when you see ' + target.label + '!';
+      resultLabel.textContent = '';
+      resultLabel.className = '';
+      scheduleNext();
+    }
+
+    function finish(result) {
+      clearTimeout(cycleTimer);
+      phase = 'done';
+
+      if (result.fail) {
+        btn.className = 'fail';
+        btn.textContent = '';
+        btn.style.background = '';
+        resultLabel.textContent = 'WRONG COLOR';
+        resultLabel.className = 'bad';
+        instruction.textContent = `That was ${result.clicked} — needed ${target.label}`;
+      } else {
+        btn.className = 'success';
+        // Keep the target color on the button for feedback
+        btn.style.background = target.bg;
+        btn.textContent = `${result.time}ms`;
+        resultLabel.textContent = `${result.time}ms`;
+        resultLabel.className = 'good';
+        instruction.textContent = 'Nice reaction!';
+      }
+
+      socket.emit('minigame:complete', { name: playerName, game: 'Reflex Lv.2', result });
+
+      // Reset to idle after showing result
+      setTimeout(() => {
+        btn.className = 'idle';
+        btn.style.background = '';
+        btn.textContent = 'Start';
+        instruction.textContent = 'Remember the target color, then tap Start';
+        resultLabel.textContent = '';
+        resultLabel.className = '';
+        pickTarget(); // new target for next round
+        phase = 'idle';
+      }, 2500);
+    }
+
+    btn.addEventListener('click', () => {
+      if (phase === 'idle') {
+        startGame();
+        return;
+      }
+      if (phase === 'running') {
+        if (currentColor.id === target.id) {
+          finish({ time: Date.now() - colorChangeTime });
+        } else {
+          finish({ fail: true, clicked: currentColor.label });
+        }
+      }
+    });
+
+    // Show the target color immediately on load
+    pickTarget();
+  </script>
+</body>
+</html>

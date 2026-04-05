@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dungeon</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d1a;
+      color: #eee;
+      font-family: monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #header {
+      position: absolute;
+      top: 14px;
+      left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    #title { font-size: 0.85rem; letter-spacing: 0.15em; color: #444; text-transform: uppercase; }
+    #dim-label { font-size: 0.75rem; color: #333; }
+
+    /* Grid wrapper — centered, fills available space */
+    #grid-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #dungeon-grid {
+      display: grid;
+      gap: 2px;
+      /* columns/rows set by JS */
+    }
+
+    .cell {
+      background: #14142a;
+      border-radius: 3px;
+      position: relative;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+    }
+
+    /* Flash on attack — color driven by --flash-color CSS variable */
+    .cell.attacked {
+      animation: attack-flash 0.45s ease-out forwards;
+    }
+    @keyframes attack-flash {
+      0%   { background: var(--flash-color, #ff5c5c); box-shadow: 0 0 14px var(--flash-color, #ff5c5c); }
+      100% { background: #14142a; box-shadow: none; }
+    }
+
+    /* Player token — width/height/font-size set inline based on cell occupancy */
+    .token {
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      flex-shrink: 0;
+    }
+
+    /* Enemy token */
+    .enemy-token {
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      background: #c0392b;
+      box-shadow: 0 0 10px rgba(220, 50, 30, 0.7);
+      flex-shrink: 0;
+    }
+
+    /* Turn banner */
+    #turn-banner {
+      position: absolute;
+      top: 14px;
+      right: 20px;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: #1e2a1e;
+      color: #4caf7d;
+      border: 1px solid #2a4a2a;
+      display: none;
+    }
+
+    /* Legend */
+    #legend {
+      position: absolute;
+      bottom: 14px;
+      left: 0; right: 0;
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 0 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #666;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* Color palette */
+    .pc-0 { background: #e96a6a; }
+    .pc-1 { background: #f59e42; }
+    .pc-2 { background: #4caf7d; }
+    .pc-3 { background: #4a9de0; }
+    .pc-4 { background: #9b8afb; }
+    .pc-5 { background: #f06292; }
+    .pc-6 { background: #26c6da; }
+    .pc-7 { background: #a3c85a; }
+
+    #empty-msg {
+      color: #333;
+      font-size: 0.85rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="header">
+    <span id="title">Dungeon</span>
+    <span id="dim-label"></span>
+  </div>
+  <div id="turn-banner"></div>
+
+  <div id="grid-wrap">
+    <div id="dungeon-grid"></div>
+    <div id="empty-msg">Waiting for dungeon state...</div>
+  </div>
+
+  <div id="legend"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const gridEl      = document.getElementById('dungeon-grid');
+    const emptyMsg    = document.getElementById('empty-msg');
+    const legendEl    = document.getElementById('legend');
+    const dimLabel    = document.getElementById('dim-label');
+    const turnBanner  = document.getElementById('turn-banner');
+
+    let currentState = null;
+    // Track cell elements for quick lookup: cells[y][x]
+    let cells = [];
+
+    function cellSize(width, height) {
+      const maxW = (window.innerWidth  - 32) / width;
+      const maxH = (window.innerHeight - 80) / height;
+      return Math.max(16, Math.floor(Math.min(maxW, maxH, 72)));
+    }
+
+    function buildGrid(width, height) {
+      const sz = cellSize(width, height);
+      gridEl.style.gridTemplateColumns = `repeat(${width},  ${sz}px)`;
+      gridEl.style.gridTemplateRows    = `repeat(${height}, ${sz}px)`;
+      gridEl.innerHTML = '';
+      cells = [];
+      for (let y = 0; y < height; y++) {
+        cells[y] = [];
+        for (let x = 0; x < width; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+          gridEl.appendChild(cell);
+          cells[y][x] = cell;
+        }
+      }
+      dimLabel.textContent = `${width} × ${height}`;
+    }
+
+    function renderState(state) {
+      const { width, height, players } = state;
+      const needRebuild = !currentState
+        || currentState.width  !== width
+        || currentState.height !== height;
+
+      if (needRebuild) buildGrid(width, height);
+      currentState = state;
+
+      // Clear all tokens
+      cells.forEach(row => row.forEach(cell => {
+        cell.innerHTML = '';
+      }));
+
+      // Group players + enemy by cell
+      const byCell = {};
+      players.forEach(p => {
+        const key = `${p.x},${p.y}`;
+        if (!byCell[key]) byCell[key] = { players: [], hasEnemy: false };
+        byCell[key].players.push(p);
+      });
+      if (state.enemy) {
+        const key = `${state.enemy.x},${state.enemy.y}`;
+        if (!byCell[key]) byCell[key] = { players: [], hasEnemy: false };
+        byCell[key].hasEnemy = true;
+      }
+
+      // Render each occupied cell
+      Object.entries(byCell).forEach(([key, { players: cellPlayers, hasEnemy }]) => {
+        const [x, y] = key.split(',').map(Number);
+        const cell = cells[y]?.[x];
+        if (!cell) return;
+        const n = cellPlayers.length + (hasEnemy ? 1 : 0);
+        const pct   = n === 1 ? 68 : n <= 4 ? 42 : 27;
+        const fSize = n === 1 ? '0.65em' : n <= 4 ? '0.42em' : '0.28em';
+
+        cellPlayers.forEach(({ name, colorIndex }) => {
+          const token = document.createElement('div');
+          token.className = `token pc-${colorIndex}`;
+          token.style.width    = `${pct}%`;
+          token.style.height   = `${pct}%`;
+          token.style.fontSize = fSize;
+          token.textContent = name.charAt(0).toUpperCase();
+          cell.appendChild(token);
+        });
+
+        if (hasEnemy) {
+          const token = document.createElement('div');
+          token.className = 'enemy-token';
+          token.style.width    = `${pct}%`;
+          token.style.height   = `${pct}%`;
+          token.style.fontSize = fSize;
+          token.textContent = '☠';
+          cell.appendChild(token);
+        }
+      });
+
+      // Legend
+      legendEl.innerHTML = '';
+      players.forEach(({ name, colorIndex }) => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        const dot = document.createElement('div');
+        dot.className = `legend-dot pc-${colorIndex}`;
+        const label = document.createElement('span');
+        label.textContent = name;
+        item.appendChild(dot);
+        item.appendChild(label);
+        legendEl.appendChild(item);
+      });
+
+      // Turn banner
+      if (state.turnBased && state.currentTurn) {
+        turnBanner.textContent = `${state.currentTurn}'s turn`;
+        turnBanner.style.display = 'block';
+      } else {
+        turnBanner.style.display = 'none';
+      }
+
+      emptyMsg.style.display = 'none';
+      gridEl.style.display = 'grid';
+    }
+
+    function flashAttack(x, y, color = '#ff5c5c') {
+      const cell = cells[y]?.[x];
+      if (!cell) return;
+      cell.style.setProperty('--flash-color', color);
+      cell.classList.remove('attacked');
+      void cell.offsetWidth;
+      cell.classList.add('attacked');
+      cell.addEventListener('animationend', () => cell.classList.remove('attacked'), { once: true });
+    }
+
+    socket.on('connect', () => {
+      socket.emit('dungeon:request-state');
+    });
+
+    socket.on('dungeon:state', (state) => {
+      renderState(state);
+    });
+
+    socket.on('dungeon:attack', ({ x, y }) => {
+      flashAttack(x, y);
+    });
+
+    socket.on('dungeon:area-attack', ({ positions, color }) => {
+      positions.forEach(({ x, y }) => flashAttack(x, y, color));
+    });
+
+    window.addEventListener('resize', () => {
+      if (currentState) buildGrid(currentState.width, currentState.height);
+    });
+  </script>
+</body>
+</html>

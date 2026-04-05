@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PvP Arena</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #b89a5a;
+      color: #4a3010;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #header {
+      position: absolute;
+      top: 14px;
+      left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    #title { font-size: 0.85rem; letter-spacing: 0.2em; color: #7a5a20; text-transform: uppercase; }
+
+    #turn-banner {
+      position: absolute;
+      top: 14px;
+      right: 20px;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      background: #7a5a20;
+      color: #ffeebb;
+      border: 1px solid #a07840;
+      display: none;
+    }
+
+    #grid-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #arena-grid {
+      display: grid;
+      gap: 2px;
+    }
+
+    .cell {
+      background: #dcc890;
+      border-radius: 2px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      position: relative;
+    }
+
+    .cell-void { background: transparent; }
+
+    .cell.attacked {
+      animation: attack-flash 0.45s ease-out forwards;
+    }
+    @keyframes attack-flash {
+      0%   { background: var(--flash-color, #e96a6a); box-shadow: 0 0 14px var(--flash-color, #e96a6a); }
+      100% { background: #dcc890; box-shadow: none; }
+    }
+
+    .token {
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+      flex-shrink: 0;
+    }
+
+    #legend {
+      position: absolute;
+      bottom: 14px;
+      left: 0; right: 0;
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 0 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #7a5a20;
+    }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    .pc-0 { background: #e96a6a; }
+    .pc-1 { background: #f59e42; }
+    .pc-2 { background: #4caf7d; }
+    .pc-3 { background: #4a9de0; }
+    .pc-4 { background: #9b8afb; }
+    .pc-5 { background: #f06292; }
+    .pc-6 { background: #26c6da; }
+    .pc-7 { background: #a3c85a; }
+
+    #empty-msg {
+      color: #8a6830;
+      font-size: 0.85rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="header"><span id="title">Arena</span></div>
+  <div id="turn-banner"></div>
+
+  <div id="grid-wrap">
+    <div id="arena-grid"></div>
+    <div id="empty-msg">Waiting for players…</div>
+  </div>
+
+  <div id="legend"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket    = io();
+    const gridEl    = document.getElementById('arena-grid');
+    const emptyMsg  = document.getElementById('empty-msg');
+    const legendEl  = document.getElementById('legend');
+    const turnBanner = document.getElementById('turn-banner');
+
+    let currentState = null;
+    let cells = [];
+
+    function cellSize(gridSize) {
+      const maxW = (window.innerWidth  - 32) / gridSize;
+      const maxH = (window.innerHeight - 80) / gridSize;
+      return Math.max(14, Math.floor(Math.min(maxW, maxH, 64)));
+    }
+
+    function inCircle(x, y, gridSize, radius) {
+      const c = Math.floor(gridSize / 2);
+      return (x - c) * (x - c) + (y - c) * (y - c) <= radius * radius;
+    }
+
+    function buildGrid(gridSize, radius) {
+      const sz = cellSize(gridSize);
+      gridEl.style.gridTemplateColumns = `repeat(${gridSize}, ${sz}px)`;
+      gridEl.style.gridTemplateRows    = `repeat(${gridSize}, ${sz}px)`;
+      gridEl.innerHTML = '';
+      cells = [];
+      for (let y = 0; y < gridSize; y++) {
+        cells[y] = [];
+        for (let x = 0; x < gridSize; x++) {
+          const cell = document.createElement('div');
+          if (inCircle(x, y, gridSize, radius)) {
+            cell.className = 'cell';
+            cells[y][x] = cell;
+          } else {
+            cell.className = 'cell-void';
+            cells[y][x] = null;
+          }
+          gridEl.appendChild(cell);
+        }
+      }
+    }
+
+    function renderState(state) {
+      const { players, gridSize, radius } = state;
+      const needRebuild = !currentState
+        || currentState.gridSize !== gridSize
+        || currentState.radius  !== radius;
+      if (needRebuild) buildGrid(gridSize, radius);
+      currentState = state;
+
+      cells.forEach(row => row.forEach(cell => { if (cell) cell.innerHTML = ''; }));
+
+      const byCell = {};
+      players.forEach(p => {
+        const key = `${p.x},${p.y}`;
+        if (!byCell[key]) byCell[key] = [];
+        byCell[key].push(p);
+      });
+
+      Object.entries(byCell).forEach(([key, group]) => {
+        const [x, y] = key.split(',').map(Number);
+        const cell = cells[y]?.[x];
+        if (!cell) return;
+        const n = group.length;
+        const pct   = n === 1 ? 68 : n <= 4 ? 42 : 27;
+        const fSize = n === 1 ? '0.65em' : n <= 4 ? '0.42em' : '0.28em';
+        group.forEach(({ name, colorIndex }) => {
+          const token = document.createElement('div');
+          token.className = `token pc-${colorIndex}`;
+          token.style.width    = `${pct}%`;
+          token.style.height   = `${pct}%`;
+          token.style.fontSize = fSize;
+          token.textContent = name.charAt(0).toUpperCase();
+          cell.appendChild(token);
+        });
+      });
+
+      legendEl.innerHTML = '';
+      players.forEach(({ name, colorIndex }) => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        const dot = document.createElement('div');
+        dot.className = `legend-dot pc-${colorIndex}`;
+        const label = document.createElement('span');
+        label.textContent = name;
+        item.appendChild(dot);
+        item.appendChild(label);
+        legendEl.appendChild(item);
+      });
+
+      if (state.turnBased && state.currentTurn) {
+        turnBanner.textContent = `${state.currentTurn}'s turn`;
+        turnBanner.style.display = 'block';
+      } else {
+        turnBanner.style.display = 'none';
+      }
+
+      emptyMsg.style.display  = players.length === 0 ? 'block' : 'none';
+      gridEl.style.display    = players.length === 0 ? 'none'  : 'grid';
+    }
+
+    function flashAttack(x, y, color) {
+      const cell = cells[y]?.[x];
+      if (!cell) return;
+      cell.style.setProperty('--flash-color', color);
+      cell.classList.remove('attacked');
+      void cell.offsetWidth;
+      cell.classList.add('attacked');
+      cell.addEventListener('animationend', () => cell.classList.remove('attacked'), { once: true });
+    }
+
+    socket.on('connect', () => socket.emit('pvp:request-state'));
+    socket.on('pvp:state', state => renderState(state));
+    socket.on('pvp:area-attack', ({ positions, color }) => {
+      positions.forEach(({ x, y }) => flashAttack(x, y, color));
+    });
+
+    window.addEventListener('resize', () => {
+      if (currentState) buildGrid(currentState.gridSize, currentState.radius);
+    });
+  </script>
+</body>
+</html>

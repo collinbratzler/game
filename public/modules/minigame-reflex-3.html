@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Reflex Test Lv.3</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f7f6f3;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 24px max(24px, env(safe-area-inset-bottom));
+      user-select: none;
+      gap: 20px;
+    }
+
+    #title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #bbb;
+    }
+
+    /* Prompt card */
+    #prompt-card {
+      background: #fff;
+      border: 1.5px solid #e8e6e1;
+      border-radius: 14px;
+      padding: 14px 22px;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+      min-width: 260px;
+    }
+    #prompt-card.visible { opacity: 1; }
+
+    #prompt-line1 {
+      font-size: 0.72rem;
+      color: #bbb;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+    #prompt-line2 {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 1rem;
+    }
+    #prompt-attr {
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    #prompt-connector {
+      color: #aaa;
+      font-weight: 400;
+    }
+    #prompt-target {
+      font-weight: 800;
+    }
+    #prompt-swatch {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* Reaction button */
+    #react-btn {
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.7rem;
+      font-weight: 800;
+      touch-action: manipulation;
+      transition: background 0.07s, box-shadow 0.15s, transform 0.08s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+
+    #react-btn.idle {
+      background: #1a1a1a;
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+    #react-btn.idle:active { transform: scale(0.96); }
+
+    #react-btn.running {
+      box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    }
+    #react-btn.running:active { transform: scale(0.95); }
+
+    #react-btn.fail {
+      background: #2a2a2a !important;
+      color: #fff !important;
+      box-shadow: 0 0 48px rgba(233,106,106,0.35);
+      cursor: default;
+    }
+    #react-btn.success {
+      cursor: default;
+      box-shadow: 0 0 56px rgba(0,0,0,0.22);
+    }
+
+    #instruction {
+      font-size: 0.88rem;
+      color: #aaa;
+      text-align: center;
+      min-height: 1.4em;
+      max-width: 260px;
+    }
+
+    #result-label {
+      font-size: 1.9rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      min-height: 2.4rem;
+    }
+    #result-label.good { color: #4a9de0; }
+    #result-label.bad  { color: #e96a6a; }
+  </style>
+</head>
+<body>
+
+  <div id="title">Reflex Test · Level 3</div>
+
+  <div id="prompt-card">
+    <div id="prompt-line1">Click when the</div>
+    <div id="prompt-line2">
+      <span id="prompt-attr">—</span>
+      <span id="prompt-connector">is</span>
+      <span id="prompt-target">—</span>
+      <span id="prompt-swatch"></span>
+    </div>
+  </div>
+
+  <button id="react-btn" class="idle">Start</button>
+
+  <div id="instruction">Study the prompt, then tap Start</div>
+  <div id="result-label"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const playerName = new URLSearchParams(location.search).get('name') || 'Unknown';
+    const socket = io();
+
+    const COLORS = [
+      { id: 'green',  label: 'Green',  bg: '#4caf7d' },
+      { id: 'orange', label: 'Orange', bg: '#f59e42' },
+      { id: 'purple', label: 'Purple', bg: '#9b8afb' },
+    ];
+
+    // The three things the prompt can ask about
+    const PROMPT_TYPES = [
+      { id: 'bg',        attr: 'Background', connector: 'is' },
+      { id: 'textColor', attr: 'Text Color',  connector: 'is' },
+      { id: 'word',      attr: 'Text Says',   connector: '' },
+    ];
+
+    const btn          = document.getElementById('react-btn');
+    const instruction  = document.getElementById('instruction');
+    const resultLabel  = document.getElementById('result-label');
+    const promptCard   = document.getElementById('prompt-card');
+    const promptAttrEl = document.getElementById('prompt-attr');
+    const promptConnEl = document.getElementById('prompt-connector');
+    const promptTargEl = document.getElementById('prompt-target');
+    const promptSwEl   = document.getElementById('prompt-swatch');
+
+    let phase = 'idle';
+    let prompt = null;       // { type, target: COLOR }
+    let currentState = null; // { bgColor, textColor, wordColor } — all different
+    let colorChangeTime = null;
+    let cycleTimer = null;
+
+    // All 3 colors are always different from each other
+    function randomState() {
+      const shuffled = [...COLORS].sort(() => Math.random() - 0.5);
+      return { bgColor: shuffled[0], textColor: shuffled[1], wordColor: shuffled[2] };
+    }
+
+    function isMatch(state) {
+      if (!state) return false;
+      if (prompt.type === 'bg')        return state.bgColor.id   === prompt.target.id;
+      if (prompt.type === 'textColor') return state.textColor.id === prompt.target.id;
+      if (prompt.type === 'word')      return state.wordColor.id === prompt.target.id;
+    }
+
+    function generatePrompt() {
+      const ptype  = PROMPT_TYPES[Math.floor(Math.random() * PROMPT_TYPES.length)];
+      const target = COLORS[Math.floor(Math.random() * COLORS.length)];
+      prompt = { type: ptype.id, target };
+
+      promptAttrEl.textContent = ptype.attr;
+      promptConnEl.textContent = ptype.connector;
+      promptTargEl.textContent = target.label;
+      promptTargEl.style.color = target.bg;
+      promptSwEl.style.background = target.bg;
+      promptSwEl.style.display = ptype.id === 'word' ? 'none' : 'inline-block';
+      promptCard.classList.add('visible');
+    }
+
+    function showGray() {
+      currentState = null;
+      btn.style.background = '#c8c6c2';
+      btn.style.color = 'transparent';
+      btn.textContent = '\u00A0'; // keeps height stable
+    }
+
+    function showState(state) {
+      currentState = state;
+      colorChangeTime = Date.now();
+      btn.style.background = state.bgColor.bg;
+      btn.style.color = state.textColor.bg;
+      btn.textContent = state.wordColor.label;
+    }
+
+    function scheduleNext() {
+      const state = randomState();
+      const match = isMatch(state);
+
+      showGray();
+      cycleTimer = setTimeout(() => {
+        if (phase !== 'running') return;
+        showState(state);
+        // If this is the matching state, hold it — player must click
+        if (match) return;
+        // Otherwise show briefly then continue
+        cycleTimer = setTimeout(() => {
+          if (phase !== 'running') return;
+          scheduleNext();
+        }, 800 + Math.random() * 600);
+      }, 450 + Math.random() * 350);
+    }
+
+    function startGame() {
+      phase = 'running';
+      btn.className = 'running';
+      instruction.textContent = 'Tap when the condition matches!';
+      resultLabel.textContent = '';
+      resultLabel.className = '';
+      scheduleNext();
+    }
+
+    function finish(result) {
+      clearTimeout(cycleTimer);
+      phase = 'done';
+
+      if (result.fail) {
+        btn.className = 'fail';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.textContent = '';
+        resultLabel.textContent = 'WRONG';
+        resultLabel.className = 'bad';
+        instruction.textContent = "That didn't match the condition";
+      } else {
+        btn.className = 'success';
+        resultLabel.textContent = `${result.time}ms`;
+        resultLabel.className = 'good';
+        instruction.textContent = 'Nice reaction!';
+      }
+
+      socket.emit('minigame:complete', { name: playerName, game: 'Reflex Lv.3', result });
+
+      setTimeout(() => {
+        btn.className = 'idle';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.textContent = 'Start';
+        resultLabel.textContent = '';
+        resultLabel.className = '';
+        instruction.textContent = 'Study the prompt, then tap Start';
+        generatePrompt();
+        phase = 'idle';
+      }, 2500);
+    }
+
+    btn.addEventListener('click', () => {
+      if (phase === 'idle') { startGame(); return; }
+      if (phase === 'running') {
+        if (isMatch(currentState)) {
+          finish({ time: Date.now() - colorChangeTime });
+        } else {
+          finish({ fail: true });
+        }
+      }
+    });
+
+    generatePrompt();
+  </script>
+</body>
+</html>
