@@ -34,10 +34,10 @@ const arena = {
 
   // Rules
   pvp:         false,
-  hasEnemy:    true,
+  hasEnemy:    true, //no more hasEnemy attribute. it should have a list of enemies with their ai and sprite and default to empty
   enemySpawns: [{ x: 9, y: 7, ai: 'chaser' }],
   enemies:     [],
-  walls:       [],
+  walls:       [], //i dont think we need walls anymore, they will just be included in the ajaceny matrix as empty (or maybe 2 for wall)
 
   // Turn / timer
   mode:           'freeze',  // 'freeze' | 'free' | 'turn' | 'clock'
