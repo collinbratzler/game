@@ -9,36 +9,59 @@ const path    = require('path');
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server);
-const PORT   = 3000;
+const PORT         = 3000;
+const ENEMY_TURN_ID = '__enemy__';  // sentinel in turnOrder for the enemy turn slot
 
-// ── Class behaviors (data-driven) ─────────────────────────────────────
+// ── Class behaviors — used for class color on attack flash ────────────
 const CLASS_BEHAVIORS = {
-  barbarian: {
-    color: '#c0392b',
-    attackOnMove: true,
-    getAttackPositions(x, y, inBounds) {
+  barbarian: { color: '#e96a6a' },
+  wizard:    { color: '#4a9de0' },
+  healer:    { color: '#4caf7d' },
+  rogue:     { color: '#9b8afb' },
+};
+
+// ── Attack behaviors — chosen independently by the player ─────────────
+const ATTACK_BEHAVIORS = {
+  // Cross pattern: self + 4 cardinal neighbours
+  melee: {
+    getPositions(x, y, dir, inBounds) {
       return [{ x, y }, { x, y: y-1 }, { x, y: y+1 }, { x: x-1, y }, { x: x+1, y }]
         .filter(p => inBounds(p.x, p.y));
     },
   },
-  wizard: {
-    color: '#4a9de0',
-    attackOnMove: true,
-    getAttackPositions(x, y, inBounds) {
-      return [{ x, y }, { x, y: y-1 }, { x, y: y+1 }, { x: x-1, y }, { x: x+1, y }]
-        .filter(p => inBounds(p.x, p.y));
-    },
-  },
-  healer: {
-    color: '#f5d442',
-    attackOnMove: false,
-    getAttackPositions(x, y, inBounds) {
+  // 3×3 area around self
+  area: {
+    getPositions(x, y, dir, inBounds) {
       const pos = [];
       for (let dy = -1; dy <= 1; dy++)
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx, ny = y + dy;
-          if (inBounds(nx, ny)) pos.push({ x: nx, y: ny });
-        }
+        for (let dx = -1; dx <= 1; dx++)
+          if (inBounds(x + dx, y + dy)) pos.push({ x: x + dx, y: y + dy });
+      return pos;
+    },
+  },
+  // 4-tile line in the direction the player last moved
+  ranged: {
+    getPositions(x, y, dir, inBounds) {
+      const DELTAS = {
+        up:[0,-1], down:[0,1], left:[-1,0], right:[1,0],
+        upleft:[-1,-1], upright:[1,-1], downleft:[-1,1], downright:[1,1],
+      };
+      const [dx, dy] = DELTAS[dir] || [0, -1];
+      const pos = [];
+      for (let i = 0; i <= 3; i++) {
+        const nx = x + dx * i, ny = y + dy * i;
+        if (inBounds(nx, ny)) pos.push({ x: nx, y: ny });
+      }
+      return pos;
+    },
+  },
+  // Full row (horizontal last move) or column (vertical last move)
+  pierce: {
+    getPositions(x, y, dir, inBounds) {
+      const horiz = ['left','right','upleft','upright','downleft','downright'].includes(dir);
+      const pos = [];
+      if (horiz) { for (let nx = 0; nx < 40; nx++) if (inBounds(nx, y)) pos.push({ x: nx, y }); }
+      else        { for (let ny = 0; ny < 40; ny++) if (inBounds(x, ny)) pos.push({ x, y: ny }); }
       return pos;
     },
   },
@@ -46,9 +69,10 @@ const CLASS_BEHAVIORS = {
 
 // ── Display routing ───────────────────────────────────────────────────
 const DISPLAY_MAP = {
-  'waiting': 'waiting-display',
-  'arena':   'arena-display',
-  'chat':    'chat-display',
+  'waiting':          'waiting-display',
+  'character-select': 'character-select-display',
+  'arena':            'arena-display',
+  'chat':             'chat-display',
 };
 function toDisplayModule(id) { return DISPLAY_MAP[id] || id; }
 
@@ -71,10 +95,11 @@ const arena = {
   gridSize: 11,       // circle only: 2*radius+1
 
   // Rules
-  pvp:      false,    // players can kill each other
-  hasEnemy: true,     // NPC enemy enabled
-  enemy:    { x: 9, y: 7 },
-  walls:    [],       // [{ x, y }] impassable tiles
+  pvp:         false,   // players can kill each other
+  hasEnemy:    true,    // NPC enemies enabled (master toggle)
+  enemySpawns: [{ x: 9, y: 7 }],  // spawn positions (permanent config)
+  enemies:     [],  // active enemies — populated by spawnEnemiesFromConfig() at startup
+  walls:       [],      // [{ x, y }] impassable tiles
 
   // Players
   players:  {},       // socketId → { name, x, y, colorIndex }
@@ -171,35 +196,77 @@ function isMyTurn(socketId) {
   return arena.turnOrder[arena.currentTurnIdx % arena.turnOrder.length] === socketId;
 }
 
+// Keep enemy slot in sync with arena config
+function syncEnemyInTurnOrder() {
+  const shouldHaveSlot = arena.hasEnemy && arena.enemies.length > 0 && !arena.pvp;
+  const idx = arena.turnOrder.indexOf(ENEMY_TURN_ID);
+  if (shouldHaveSlot && idx === -1) {
+    arena.turnOrder.push(ENEMY_TURN_ID);
+  } else if (!shouldHaveSlot && idx !== -1) {
+    arena.turnOrder.splice(idx, 1);
+    if (arena.currentTurnIdx >= arena.turnOrder.length && arena.turnOrder.length > 0)
+      arena.currentTurnIdx = 0;
+  }
+}
+
+// Enemy "turn": wait 700ms via interval, then act, then advance
+function startEnemyTurn() {
+  clearArenaTimer();
+  let elapsed = 0;
+  arena.timerInterval = setInterval(() => {
+    elapsed += 100;
+    if (elapsed >= 700) {
+      clearArenaTimer();
+      moveAndAttackEnemies();
+      io.emit('arena:state', getArenaSnapshot());
+      // Advance past enemy slot to next player
+      if (arena.turnOrder.length > 0) {
+        arena.currentTurnIdx = (arena.currentTurnIdx + 1) % arena.turnOrder.length;
+        io.emit('arena:state', getArenaSnapshot());
+        startArenaTimer();
+      }
+    }
+  }, 100);
+}
+
+// Used by clock mode and free mode (not turn mode) — 700ms delay then act then callback
+function executeEnemyActionThenCallback(cb) {
+  let elapsed = 0;
+  const interval = setInterval(() => {
+    elapsed += 100;
+    if (elapsed >= 700) {
+      clearInterval(interval);
+      moveAndAttackEnemies();
+      cb();
+    }
+  }, 100);
+}
+
 function advanceTurn() {
   if (arena.turnOrder.length === 0) return;
   clearArenaTimer();
   arena.currentTurnIdx = (arena.currentTurnIdx + 1) % arena.turnOrder.length;
   io.emit('arena:state', getArenaSnapshot());
-  if (arena.hasEnemy && arena.enemy && !arena.pvp) {
-    doEnemyTurn(() => { io.emit('arena:state', getArenaSnapshot()); startArenaTimer(); });
+
+  const current = arena.turnOrder[arena.currentTurnIdx];
+  if (current === ENEMY_TURN_ID) {
+    startEnemyTurn();
   } else {
     startArenaTimer();
   }
 }
 
-// ── Class helpers ──────────────────────────────────────────────────────
-function getPlayerClass(socketId) {
-  const p = arena.players[socketId];
-  if (!p) return 'barbarian';
-  const sp = Object.values(state.players).find(s => s.name === p.name);
-  return sp?.playerClass || 'barbarian';
-}
-
 function fireAttack(socketId, isStay) {
   const p = arena.players[socketId];
   if (!p) return;
-  const cls      = getPlayerClass(socketId);
-  const behavior = CLASS_BEHAVIORS[cls] || CLASS_BEHAVIORS.barbarian;
-  if (!behavior.attackOnMove && !isStay) return;  // healer skips on move
+  const sp         = Object.values(state.players).find(s => s.name === p.name);
+  const cls        = sp?.playerClass  || 'barbarian';
+  const attackType = sp?.attackType   || 'melee';
+  const classColor = CLASS_BEHAVIORS[cls]?.color || '#e96a6a';
+  const behavior   = ATTACK_BEHAVIORS[attackType] || ATTACK_BEHAVIORS.melee;
 
-  const positions = behavior.getAttackPositions(p.x, p.y, makeInBounds());
-  io.emit('arena:area-attack', { positions, color: behavior.color });
+  const positions = behavior.getPositions(p.x, p.y, p.lastDir || 'up', makeInBounds());
+  io.emit('arena:area-attack', { positions, color: classColor });
 
   if (arena.pvp) {
     const toKill = [];
@@ -210,90 +277,118 @@ function fireAttack(socketId, isStay) {
     }
     for (const { sid, name } of toKill) killPlayer(sid, name);
   }
-  if (arena.hasEnemy && arena.enemy) checkKillEnemy(positions);
+  if (arena.hasEnemy && arena.enemies.length > 0) checkKillEnemies(positions);
 }
 
 // ── Clock round ────────────────────────────────────────────────────────
 function resolveClockRound() {
   const inBounds = makeInBounds();
+  const DIRS = {
+    up:[0,-1], down:[0,1], left:[-1,0], right:[1,0],
+    upleft:[-1,-1], upright:[1,-1], downleft:[-1,1], downright:[1,1],
+  };
   // 1. Move all players simultaneously
   for (const [sid, action] of Object.entries(arena.pendingActions)) {
+    if (sid === ENEMY_TURN_ID) continue;
     const p = arena.players[sid];
     if (!p) continue;
-    let nx = p.x, ny = p.y;
-    if (action === 'up')    ny--;
-    else if (action === 'down')  ny++;
-    else if (action === 'left')  nx--;
-    else if (action === 'right') nx++;
-    if (inBounds(nx, ny) && !isWall(nx, ny)) { p.x = nx; p.y = ny; }
+    const delta = DIRS[action];
+    if (delta) {
+      const [dx, dy] = delta;
+      const nx = p.x + dx, ny = p.y + dy;
+      if (inBounds(nx, ny) && !isWall(nx, ny)) { p.x = nx; p.y = ny; }
+      p.lastDir = action;
+    }
   }
   // 2. Fire all attacks simultaneously
   for (const sid of Object.keys(arena.players)) {
     const action = arena.pendingActions[sid] || 'stay';
     fireAttack(sid, action === 'stay');
   }
-  // 3. Enemy turn (if applicable), then reset and restart
+  // 3. Enemy acts (if applicable), then reset pending actions and restart clock
   const afterClock = () => {
     arena.pendingActions = {};
-    for (const sid of arena.turnOrder) arena.pendingActions[sid] = 'stay';
+    for (const sid of arena.turnOrder) {
+      if (sid !== ENEMY_TURN_ID) arena.pendingActions[sid] = 'stay';
+    }
     io.emit('arena:clock-round-end');
     io.emit('arena:state', getArenaSnapshot());
     startArenaTimer();
   };
-  if (arena.hasEnemy && arena.enemy && !arena.pvp) {
-    doEnemyTurn(afterClock);
+  if (arena.hasEnemy && arena.enemies.length > 0 && !arena.pvp) {
+    executeEnemyActionThenCallback(afterClock);
   } else {
     afterClock();
   }
 }
 
 // ── Enemy AI ───────────────────────────────────────────────────────────
-function doEnemyTurn(cb) {
-  if (!arena.enemy) { cb(); return; }
-  setTimeout(() => { moveAndAttackEnemy(); cb(); }, 700);
+let enemyIdCounter = 1;
+
+function spawnEnemiesFromConfig() {
+  arena.enemies = arena.enemySpawns.map(() => ({
+    id: enemyIdCounter++, x: 0, y: 0,
+  }));
+  // Set actual positions
+  arena.enemies.forEach((e, i) => {
+    e.x = arena.enemySpawns[i].x;
+    e.y = arena.enemySpawns[i].y;
+  });
+  syncEnemyInTurnOrder();
 }
 
-function moveAndAttackEnemy() {
-  if (!arena.enemy) return;
+function moveAndAttackEnemies() {
   const players = Object.values(arena.players);
-  if (players.length === 0) return;
-
-  // Find nearest player (Manhattan distance)
-  let nearest = null, minDist = Infinity;
-  for (const p of players) {
-    const d = Math.abs(p.x - arena.enemy.x) + Math.abs(p.y - arena.enemy.y);
-    if (d < minDist) { minDist = d; nearest = p; }
-  }
-  if (!nearest) return;
-
-  // Move one step toward nearest
-  const dx = nearest.x - arena.enemy.x;
-  const dy = nearest.y - arena.enemy.y;
   const inBounds = makeInBounds();
-  let nx = arena.enemy.x, ny = arena.enemy.y;
-  if (Math.abs(dx) >= Math.abs(dy)) nx += dx > 0 ? 1 : -1;
-  else                               ny += dy > 0 ? 1 : -1;
-  if (inBounds(nx, ny) && !isWall(nx, ny)) { arena.enemy.x = nx; arena.enemy.y = ny; }
+  const toKillPlayers = [];
 
-  // Flash cross hit zone
-  const { x, y } = arena.enemy;
-  const hitZone = [{ x, y }, { x, y: y-1 }, { x, y: y+1 }, { x: x-1, y }, { x: x+1, y }]
-    .filter(h => inBounds(h.x, h.y));
-  io.emit('arena:area-attack', { positions: hitZone, color: '#c0392b' });
+  for (const enemy of arena.enemies) {
+    if (players.length === 0) break;
 
-  const toKill = [];
-  for (const [sid, p] of Object.entries(arena.players)) {
-    if (hitZone.some(h => h.x === p.x && h.y === p.y)) toKill.push({ sid, name: p.name });
+    // Find nearest player (Manhattan distance)
+    let nearest = null, minDist = Infinity;
+    for (const p of players) {
+      const d = Math.abs(p.x - enemy.x) + Math.abs(p.y - enemy.y);
+      if (d < minDist) { minDist = d; nearest = p; }
+    }
+    if (!nearest) continue;
+
+    // Move one step toward nearest
+    const dx = nearest.x - enemy.x;
+    const dy = nearest.y - enemy.y;
+    let nx = enemy.x, ny = enemy.y;
+    if (Math.abs(dx) >= Math.abs(dy)) nx += dx > 0 ? 1 : -1;
+    else                               ny += dy > 0 ? 1 : -1;
+    if (inBounds(nx, ny) && !isWall(nx, ny)) { enemy.x = nx; enemy.y = ny; }
+
+    // Cross hit zone attack
+    const { x, y } = enemy;
+    const hitZone = [{ x, y }, { x, y: y-1 }, { x, y: y+1 }, { x: x-1, y }, { x: x+1, y }]
+      .filter(h => inBounds(h.x, h.y));
+    io.emit('arena:area-attack', { positions: hitZone, color: '#c0392b' });
+
+    for (const [sid, p] of Object.entries(arena.players)) {
+      if (hitZone.some(h => h.x === p.x && h.y === p.y))
+        toKillPlayers.push({ sid, name: p.name });
+    }
   }
-  for (const { sid, name } of toKill) killPlayer(sid, name);
+
+  // Kill players after all enemies have acted (avoid modifying mid-loop)
+  const killed = new Set();
+  for (const { sid, name } of toKillPlayers) {
+    if (!killed.has(sid)) { killed.add(sid); killPlayer(sid, name); }
+  }
 }
 
-function checkKillEnemy(positions) {
-  if (!arena.enemy) return;
-  if (positions.some(p => p.x === arena.enemy.x && p.y === arena.enemy.y)) {
-    arena.enemy = null;
-    addLog('Enemy defeated!', 'result-good');
-  }
+function checkKillEnemies(positions) {
+  arena.enemies = arena.enemies.filter(enemy => {
+    if (positions.some(p => p.x === enemy.x && p.y === enemy.y)) {
+      addLog('Enemy defeated!', 'result-good');
+      return false;
+    }
+    return true;
+  });
+  syncEnemyInTurnOrder();
 }
 
 function killPlayer(socketId, name) {
@@ -315,7 +410,9 @@ function getArenaSnapshot() {
   const activeLen = arena.turnOrder.length;
   const curSid = arena.mode === 'turn' && activeLen > 0
     ? arena.turnOrder[arena.currentTurnIdx % activeLen] : null;
-  const curPlayer = curSid ? arena.players[curSid] : null;
+  const curPlayer = (curSid && curSid !== ENEMY_TURN_ID) ? arena.players[curSid] : null;
+  const currentTurn = curSid === ENEMY_TURN_ID ? 'Enemy'
+    : (curPlayer ? curPlayer.name : null);
   return {
     shape:        arena.shape,
     width:        arena.width,
@@ -324,7 +421,8 @@ function getArenaSnapshot() {
     gridSize:     arena.gridSize,
     pvp:          arena.pvp,
     hasEnemy:     arena.hasEnemy,
-    enemy:        arena.enemy,
+    enemies:      arena.enemies,
+    enemySpawns:  arena.enemySpawns,
     walls:        arena.walls,
     players:      Object.values(arena.players),
     mode:         arena.mode,
@@ -332,14 +430,22 @@ function getArenaSnapshot() {
     timerSeconds: arena.timerSeconds,
     clockSeconds: arena.clockSeconds,
     timeLeft:     arena.timeLeft,
-    currentTurn:  curPlayer ? curPlayer.name : null,
+    currentTurn:  currentTurn,
     pendingActions: arena.mode === 'clock' ? arena.pendingActions : {},
   };
 }
 
 function getStateSnapshot() {
   return {
-    players:        Object.values(state.players),
+    players: Object.values(state.players).map(p => ({
+      name:          p.name,
+      socketId:      p.socketId,
+      playerClass:   p.playerClass   || 'barbarian',
+      movementType:  p.movementType  || 'cardinal',
+      attackType:    p.attackType    || 'melee',
+      colorIndex:    p.colorIndex    ?? null,
+      charSelectDone: p.charSelectDone || false,
+    })),
     currentModule:  state.currentModule,
     currentDisplay: state.currentDisplay,
     arena: {
@@ -442,6 +548,7 @@ io.on('connection', (socket) => {
     const arenaEntry = Object.entries(arena.players).find(([, p]) => p.name === name);
     if (arenaEntry) io.to(arenaEntry[0]).emit('arena:class-update', playerClass);
     io.emit('host:state-update', getStateSnapshot());
+    addLog(`Class override: ${name} → ${playerClass}`, 'action');
   });
 
   // Arena config: shape, size, pvp, enemy toggle
@@ -453,8 +560,7 @@ io.on('connection', (socket) => {
     if (pvp      !== undefined) arena.pvp      = !!pvp;
     if (hasEnemy !== undefined) {
       arena.hasEnemy = !!hasEnemy;
-      if (arena.hasEnemy && !arena.enemy) arena.enemy = { x: arena.width - 1, y: arena.height - 1 };
-      else if (!arena.hasEnemy) arena.enemy = null;
+      syncEnemyInTurnOrder();
     }
     if (arena.shape === 'circle') recalcCircle();
     // Clamp out-of-bounds players
@@ -473,7 +579,11 @@ io.on('connection', (socket) => {
     arena.mode = mode;
     arena.currentTurnIdx = 0;
     arena.pendingActions = {};
-    if (mode === 'clock') for (const sid of arena.turnOrder) arena.pendingActions[sid] = 'stay';
+    if (mode === 'clock') {
+      for (const sid of arena.turnOrder) {
+        if (sid !== ENEMY_TURN_ID) arena.pendingActions[sid] = 'stay';
+      }
+    }
     io.emit('arena:turn-timer',  { timeLeft: 0, total: arena.timerSeconds });
     io.emit('arena:clock-timer', { timeLeft: 0, total: arena.clockSeconds });
     io.emit('arena:state', getArenaSnapshot());
@@ -503,12 +613,21 @@ io.on('connection', (socket) => {
     arena.turnOrder     = [];
     arena.currentTurnIdx = 0;
     arena.pendingActions = {};
-    if (arena.hasEnemy) arena.enemy = { x: arena.width - 1, y: arena.height - 1 };
+    spawnEnemiesFromConfig();
     for (const { socketId } of Object.values(state.players)) {
       io.to(socketId).emit('player:load-module', state.currentModule);
     }
     io.emit('arena:state', getArenaSnapshot());
     addLog('Arena reset', 'action');
+  });
+
+  // Update enemy spawn positions (host enemy editor)
+  socket.on('host:arena-set-enemy-spawns', (spawns) => {
+    if (!Array.isArray(spawns)) return;
+    arena.enemySpawns = spawns.map(s => ({ x: Math.floor(s.x), y: Math.floor(s.y) }));
+    spawnEnemiesFromConfig();
+    io.emit('arena:state', getArenaSnapshot());
+    addLog(`Enemy spawns updated: ${arena.enemySpawns.length}`, 'info');
   });
 
   socket.on('host:arena-load-level', (levelId) => {
@@ -521,9 +640,10 @@ io.on('connection', (socket) => {
       if (cfg.width  != null) arena.width  = Math.max(2, Math.min(30, cfg.width));
       if (cfg.height != null) arena.height = Math.max(2, Math.min(30, cfg.height));
       if (cfg.pvp      !== undefined) arena.pvp      = !!cfg.pvp;
-      if (cfg.hasEnemy !== undefined) {
-        arena.hasEnemy = !!cfg.hasEnemy;
-        arena.enemy    = arena.hasEnemy ? { x: arena.width - 1, y: arena.height - 1 } : null;
+      if (cfg.hasEnemy !== undefined) arena.hasEnemy = !!cfg.hasEnemy;
+      if (Array.isArray(cfg.enemySpawns)) {
+        arena.enemySpawns = cfg.enemySpawns;
+        spawnEnemiesFromConfig();
       }
       if (Array.isArray(cfg.walls)) arena.walls = cfg.walls;
       if (arena.shape === 'circle') recalcCircle();
@@ -552,35 +672,66 @@ io.on('connection', (socket) => {
     io.emit('chat:message', msg);
   });
 
+  // ── Character Select ─────────────────────────────────────────────────
+  socket.on('character-select:ready', ({ playerClass, colorIndex, movementType, attackType }) => {
+    const sp = state.players[socket.id];
+    if (!sp) return;
+    sp.playerClass   = playerClass;
+    sp.colorIndex    = colorIndex;
+    sp.movementType  = movementType;
+    sp.attackType    = attackType;
+    sp.charSelectDone = true;
+    io.emit('host:state-update', getStateSnapshot());
+    io.emit('character-select:player-ready', {
+      name: sp.name, playerClass, colorIndex, movementType, attackType,
+    });
+    addLog(`${sp.name}: ${playerClass} | ${movementType} | ${attackType}`, 'info');
+  });
+
   // ── Arena (player) ────────────────────────────────────────────────────
   socket.on('arena:join', (name) => {
-    const wasEmpty = arena.turnOrder.length === 0;
-    arena.players[socket.id] = { name, x: 0, y: 0, colorIndex: arenaColorCounter++ % 8 };
-    if (!arena.turnOrder.includes(socket.id)) arena.turnOrder.push(socket.id);
+    const noPlayersBefore = Object.keys(arena.players).length === 0;
+    const sp = Object.values(state.players).find(s => s.name === name);
+    // Use player's chosen colorIndex from character select, or auto-assign
+    const colorIndex = sp?.colorIndex != null ? sp.colorIndex : (arenaColorCounter++ % 8);
+    arena.players[socket.id] = { name, x: 0, y: 0, colorIndex, lastDir: 'up' };
+    // Insert player before the enemy slot so players always come before enemy in rotation
+    if (!arena.turnOrder.includes(socket.id)) {
+      const enemyIdx = arena.turnOrder.indexOf(ENEMY_TURN_ID);
+      if (enemyIdx !== -1) arena.turnOrder.splice(enemyIdx, 0, socket.id);
+      else arena.turnOrder.push(socket.id);
+    }
     arena.pendingActions[socket.id] = 'stay';
     if (arena.shape === 'circle') recalcCircle();
     respawnAll();
-    const sp = Object.values(state.players).find(s => s.name === name);
-    socket.emit('arena:joined', { ...arena.players[socket.id], playerClass: sp?.playerClass || 'barbarian' });
+    socket.emit('arena:joined', {
+      ...arena.players[socket.id],
+      playerClass:  sp?.playerClass  || 'barbarian',
+      movementType: sp?.movementType || 'cardinal',
+      attackType:   sp?.attackType   || 'melee',
+    });
     io.emit('arena:state', getArenaSnapshot());
-    if (wasEmpty && arena.mode !== 'free' && arena.mode !== 'freeze') startArenaTimer();
+    if (noPlayersBefore && arena.mode !== 'free' && arena.mode !== 'freeze') startArenaTimer();
   });
 
   socket.on('arena:move', (dir) => {
     const p = arena.players[socket.id];
     if (!p || arena.mode === 'freeze') return;
+    const DIRS = {
+      up:[0,-1], down:[0,1], left:[-1,0], right:[1,0],
+      upleft:[-1,-1], upright:[1,-1], downleft:[-1,1], downright:[1,1],
+    };
+    if (!DIRS[dir]) return;
     if (arena.mode === 'clock') {
       arena.pendingActions[socket.id] = dir;
       socket.emit('arena:action-selected', dir);
       return;
     }
     if (!isMyTurn(socket.id)) return;
-    let nx = p.x, ny = p.y;
-    if (dir === 'up')    ny--;
-    if (dir === 'down')  ny++;
-    if (dir === 'left')  nx--;
-    if (dir === 'right') nx++;
+    const [dx, dy] = DIRS[dir];
+    const nx = p.x + dx, ny = p.y + dy;
     if (canMoveTo(nx, ny)) { p.x = nx; p.y = ny; }
+    p.lastDir = dir;
     fireAttack(socket.id, false);
     if (arena.mode === 'turn') advanceTurn();
     else io.emit('arena:state', getArenaSnapshot());
@@ -623,7 +774,11 @@ io.on('connection', (socket) => {
         if (arena.turnOrder.length > 0 && arena.currentTurnIdx >= arena.turnOrder.length)
           arena.currentTurnIdx = 0;
         // Restart timer if someone was waiting on this player's turn
-        if (arena.mode === 'turn' && arena.turnOrder.length > 0) startArenaTimer();
+        if (arena.mode === 'turn' && arena.turnOrder.length > 0) {
+          const current = arena.turnOrder[arena.currentTurnIdx % arena.turnOrder.length];
+          if (current === ENEMY_TURN_ID) startEnemyTurn();
+          else startArenaTimer();
+        }
       }
       delete arena.players[socket.id];
       if (arena.shape === 'circle' && Object.keys(arena.players).length > 0) recalcCircle();
@@ -640,10 +795,13 @@ io.on('connection', (socket) => {
 
 // ── Free-mode enemy auto-moves ────────────────────────────────────────
 setInterval(() => {
-  if (arena.mode === 'free' && arena.hasEnemy && arena.enemy && Object.keys(arena.players).length > 0) {
-    moveAndAttackEnemy();
+  if (arena.mode === 'free' && arena.hasEnemy && arena.enemies.length > 0 && Object.keys(arena.players).length > 0) {
+    moveAndAttackEnemies();
     io.emit('arena:state', getArenaSnapshot());
   }
 }, 1500);
+
+// ── Startup init ──────────────────────────────────────────────────────
+spawnEnemiesFromConfig();   // populates arena.enemies + adds ENEMY_TURN_ID to turnOrder
 
 server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));

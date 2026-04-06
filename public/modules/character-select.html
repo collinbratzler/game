@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Character Select</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0d0d1a;
+      --card-bg:     #141428;
+      --card-border: #2a2a4a;
+      --text:        #e8e8f0;
+      --muted:       #5a5a80;
+      --accent:      #f0c060;
+    }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 14px max(14px, env(safe-area-inset-bottom));
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-align: center;
+      padding-top: 2px;
+    }
+
+    .divider { width: 100%; max-width: 440px; height: 1px; background: var(--card-border); }
+
+    .section { width: 100%; max-width: 440px; }
+    .section-title {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 7px;
+    }
+
+    /* ── Class cards ── */
+    .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .class-card {
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: 12px;
+      padding: 11px 9px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .class-card:active { transform: scale(0.96); }
+    .class-card.selected { border-color: var(--class-color, var(--accent)); background: #1a1a2e; }
+    .class-card .ci { font-size: 1.7rem; margin-bottom: 3px; }
+    .class-card .cn { font-size: 0.9rem; font-weight: 700; color: var(--class-color, var(--text)); margin-bottom: 2px; }
+    .class-card .cd { font-size: 0.67rem; color: var(--muted); line-height: 1.35; }
+
+    /* ── Color swatches ── */
+    .color-grid { display: flex; gap: 9px; flex-wrap: wrap; }
+    .color-swatch {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .color-swatch:active { transform: scale(0.88); }
+    .color-swatch.selected {
+      border-color: #fff;
+      transform: scale(1.2);
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.25);
+    }
+
+    /* ── Option buttons ── */
+    .option-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .option-grid-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .option-btn {
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px 6px;
+      cursor: pointer;
+      color: var(--text);
+      text-align: center;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .option-btn:active { transform: scale(0.96); }
+    .option-btn.selected { border-color: #4a9de0; background: #0e1e30; color: #7ab8f5; }
+    .option-btn .oi { font-size: 1.25rem; display: block; margin-bottom: 3px; }
+    .option-btn .ol { font-size: 0.76rem; font-weight: 700; display: block; }
+    .option-btn .od { font-size: 0.63rem; color: var(--muted); display: block; margin-top: 2px; }
+    .option-btn.selected .od { color: #4a7a9b; }
+
+    /* ── Ready button ── */
+    #ready-btn {
+      width: 100%; max-width: 440px;
+      padding: 15px;
+      font-size: 1rem; font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      background: #161625; color: #333355;
+      border: 2px solid #222240;
+      border-radius: 14px;
+      cursor: not-allowed;
+      transition: all 0.2s;
+      touch-action: manipulation;
+    }
+    #ready-btn.ready {
+      background: #132213; border-color: #2e7d32; color: #4caf50;
+      cursor: pointer; box-shadow: 0 0 24px rgba(76,175,80,0.18);
+    }
+    #ready-btn.ready:active { transform: scale(0.97); }
+
+    /* ── Confirmed view ── */
+    #confirmed-view {
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 80vh; gap: 16px; text-align: center; padding: 32px 20px;
+    }
+    #confirmed-view .big-icon { font-size: 4rem; }
+    #confirmed-view h2 { font-size: 1.3rem; font-weight: 700; color: #4caf50; }
+    #confirmed-view .sub { color: var(--muted); font-size: 0.85rem; }
+    .char-summary {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 14px 20px;
+      text-align: left; display: flex; flex-direction: column; gap: 9px;
+      min-width: 220px;
+    }
+    .char-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .char-label { color: var(--muted); font-size: 0.78rem; }
+    .char-val { font-size: 0.84rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <h1>✦ Choose Your Hero ✦</h1>
+
+  <div id="select-view" style="display:contents">
+
+    <div class="section">
+      <div class="section-title">Class</div>
+      <div class="class-grid" id="class-grid"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-title">Color</div>
+      <div class="color-grid" id="color-grid"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-title">Movement</div>
+      <div class="option-grid-2" id="move-grid"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="section-title">Attack Type</div>
+      <div class="option-grid-4" id="attack-grid"></div>
+    </div>
+
+    <button id="ready-btn">— Select a Class —</button>
+  </div>
+
+  <div id="confirmed-view">
+    <div class="big-icon" id="conf-icon">⚔</div>
+    <h2>Ready!</h2>
+    <p class="sub">Waiting for the host to start…</p>
+    <div class="char-summary" id="char-summary"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const playerName = new URLSearchParams(location.search).get('name') || 'Unknown';
+    const socket = io();
+
+    // ── Data ──────────────────────────────────────────────────────────
+    const CLASSES = [
+      { id: 'barbarian', icon: '⚔',  name: 'Barbarian', desc: 'Melee warrior\nHits all adjacent', color: '#e96a6a', defaultAttack: 'melee',  defaultMove: 'cardinal', defaultColor: 0 },
+      { id: 'wizard',    icon: '🔮', name: 'Wizard',    desc: 'Arcane caster\nFires in move dir',  color: '#4a9de0', defaultAttack: 'ranged', defaultMove: 'cardinal', defaultColor: 3 },
+      { id: 'healer',    icon: '💚', name: 'Healer',    desc: 'Area support\n3×3 zone attack',     color: '#4caf7d', defaultAttack: 'area',   defaultMove: 'cardinal', defaultColor: 2 },
+      { id: 'rogue',     icon: '🗡', name: 'Rogue',     desc: 'Diagonal runner\nFull-row pierce',  color: '#9b8afb', defaultAttack: 'pierce', defaultMove: 'diagonal', defaultColor: 4 },
+    ];
+
+    const COLORS = [
+      { index: 0, hex: '#e96a6a' },
+      { index: 1, hex: '#f59e42' },
+      { index: 2, hex: '#4caf7d' },
+      { index: 3, hex: '#4a9de0' },
+      { index: 4, hex: '#9b8afb' },
+      { index: 5, hex: '#f06292' },
+      { index: 6, hex: '#26c6da' },
+      { index: 7, hex: '#a3c85a' },
+    ];
+
+    const MOVE_TYPES = [
+      { id: 'cardinal', icon: '✦', label: 'Cardinal', desc: '4 directions' },
+      { id: 'diagonal', icon: '◈', label: 'Diagonal', desc: '8 directions' },
+    ];
+
+    const ATTACK_TYPES = [
+      { id: 'melee',  icon: '⚔',  label: 'Melee',  desc: 'Adjacent cross' },
+      { id: 'area',   icon: '💥', label: 'Area',   desc: '3×3 around self' },
+      { id: 'ranged', icon: '🏹', label: 'Ranged', desc: '4-tile line ahead' },
+      { id: 'pierce', icon: '⚡', label: 'Pierce', desc: 'Full row or col' },
+    ];
+
+    // ── State ─────────────────────────────────────────────────────────
+    let selectedClass  = null;
+    let selectedColor  = 0;
+    let selectedMove   = 'cardinal';
+    let selectedAttack = 'melee';
+    let confirmed      = false;
+
+    // ── Build class grid ──────────────────────────────────────────────
+    const classGrid = document.getElementById('class-grid');
+    CLASSES.forEach(cls => {
+      const card = document.createElement('div');
+      card.className = 'class-card';
+      card.style.setProperty('--class-color', cls.color);
+      card.innerHTML = `<div class="ci">${cls.icon}</div><div class="cn">${cls.name}</div><div class="cd">${cls.desc.replace('\n', '<br>')}</div>`;
+      card.addEventListener('click', () => {
+        if (confirmed) return;
+        selectedClass  = cls.id;
+        selectedAttack = cls.defaultAttack;
+        selectedMove   = cls.defaultMove;
+        selectedColor  = cls.defaultColor;
+        renderAll();
+      });
+      classGrid.appendChild(card);
+    });
+
+    // ── Build color grid ──────────────────────────────────────────────
+    const colorGrid = document.getElementById('color-grid');
+    COLORS.forEach(({ index, hex }) => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch';
+      sw.style.background = hex;
+      sw.addEventListener('click', () => {
+        if (confirmed) return;
+        selectedColor = index;
+        renderAll();
+      });
+      colorGrid.appendChild(sw);
+    });
+
+    // ── Build movement grid ───────────────────────────────────────────
+    const moveGrid = document.getElementById('move-grid');
+    MOVE_TYPES.forEach(mt => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.innerHTML = `<span class="oi">${mt.icon}</span><span class="ol">${mt.label}</span><span class="od">${mt.desc}</span>`;
+      btn.addEventListener('click', () => {
+        if (confirmed) return;
+        selectedMove = mt.id;
+        renderAll();
+      });
+      moveGrid.appendChild(btn);
+    });
+
+    // ── Build attack grid ─────────────────────────────────────────────
+    const attackGrid = document.getElementById('attack-grid');
+    ATTACK_TYPES.forEach(at => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.innerHTML = `<span class="oi">${at.icon}</span><span class="ol">${at.label}</span><span class="od">${at.desc}</span>`;
+      btn.addEventListener('click', () => {
+        if (confirmed) return;
+        selectedAttack = at.id;
+        renderAll();
+      });
+      attackGrid.appendChild(btn);
+    });
+
+    // ── Render selections to UI ───────────────────────────────────────
+    function renderAll() {
+      Array.from(classGrid.children).forEach((card, i) => {
+        card.classList.toggle('selected', CLASSES[i].id === selectedClass);
+      });
+      Array.from(colorGrid.children).forEach((sw, i) => {
+        sw.classList.toggle('selected', i === selectedColor);
+      });
+      Array.from(moveGrid.children).forEach((btn, i) => {
+        btn.classList.toggle('selected', MOVE_TYPES[i].id === selectedMove);
+      });
+      Array.from(attackGrid.children).forEach((btn, i) => {
+        btn.classList.toggle('selected', ATTACK_TYPES[i].id === selectedAttack);
+      });
+
+      const readyBtn = document.getElementById('ready-btn');
+      if (selectedClass) {
+        readyBtn.textContent = '✓  Ready!';
+        readyBtn.className   = 'ready';
+      } else {
+        readyBtn.textContent = '— Select a Class —';
+        readyBtn.className   = '';
+      }
+    }
+
+    renderAll();
+
+    // ── Ready button ──────────────────────────────────────────────────
+    document.getElementById('ready-btn').addEventListener('click', () => {
+      if (!selectedClass || confirmed) return;
+      confirmed = true;
+      socket.emit('character-select:ready', {
+        playerClass:  selectedClass,
+        colorIndex:   selectedColor,
+        movementType: selectedMove,
+        attackType:   selectedAttack,
+      });
+      showConfirmed();
+    });
+
+    function showConfirmed() {
+      document.getElementById('select-view').style.display = 'none';
+      document.getElementById('confirmed-view').style.display = 'flex';
+
+      const cls = CLASSES.find(c => c.id === selectedClass);
+      document.getElementById('conf-icon').textContent = cls?.icon || '⚔';
+
+      const MOVE_LABELS   = { cardinal: 'Cardinal (4-way)', diagonal: 'Diagonal (8-way)' };
+      const ATTACK_LABELS = { melee: 'Melee ⚔', area: 'Area 💥', ranged: 'Ranged 🏹', pierce: 'Pierce ⚡' };
+      const colorHex = COLORS[selectedColor]?.hex || '#fff';
+
+      document.getElementById('char-summary').innerHTML = `
+        <div class="char-row">
+          <span class="char-label">Class</span>
+          <span class="char-val" style="color:${cls?.color}">${cls?.icon} ${cls?.name}</span>
+        </div>
+        <div class="char-row">
+          <span class="char-label">Color</span>
+          <span class="char-val">
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${colorHex};vertical-align:middle;margin-right:5px;"></span>${colorHex}
+          </span>
+        </div>
+        <div class="char-row">
+          <span class="char-label">Movement</span>
+          <span class="char-val">${MOVE_LABELS[selectedMove] || selectedMove}</span>
+        </div>
+        <div class="char-row">
+          <span class="char-label">Attack</span>
+          <span class="char-val">${ATTACK_LABELS[selectedAttack] || selectedAttack}</span>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

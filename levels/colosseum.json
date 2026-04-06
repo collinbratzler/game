@@ -3,5 +3,6 @@
   "shape": "circle",
   "pvp": true,
   "hasEnemy": false,
+  "enemySpawns": [],
   "walls": []
 }

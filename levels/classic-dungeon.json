@@ -5,5 +5,6 @@
   "height": 8,
   "pvp": false,
   "hasEnemy": true,
+  "enemySpawns": [{ "x": 9, "y": 7 }],
   "walls": []
 }

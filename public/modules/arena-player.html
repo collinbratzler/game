@@ -93,11 +93,20 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
     .dpad-btn:active { background: #f0eeff; transform: scale(0.93); }
-    .dpad-btn.empty  { border: none; background: transparent; box-shadow: none; pointer-events: none; }
     .dpad-btn.selected {
       background: #e8eeff; border-color: #4a9de0;
       color: #4a9de0; box-shadow: 0 0 0 2px rgba(74,157,224,0.3);
     }
+
+    /* Diagonal buttons: hidden in cardinal mode, shown in diagonal mode */
+    .dpad-btn.diag {
+      display: none; pointer-events: none;
+      font-size: 1.3rem;
+      border-color: #d0d0c8;
+      color: #bbb;
+      background: #fafaf8;
+    }
+    body.diagonal .dpad-btn.diag { display: flex; pointer-events: auto; }
 
     /* Stay/attack center button */
     #btn-stay { font-size: 2rem; color: #888; }
@@ -130,17 +139,17 @@
     <div id="turn-status"></div>
     <div id="timer-bar-wrap"><div id="timer-bar"></div></div>
     <div id="dpad">
-      <div class="dpad-btn empty"></div>
+      <button class="dpad-btn diag" id="btn-upleft">↖</button>
       <button class="dpad-btn" id="btn-up">↑</button>
-      <div class="dpad-btn empty"></div>
+      <button class="dpad-btn diag" id="btn-upright">↗</button>
 
       <button class="dpad-btn" id="btn-left">←</button>
       <button class="dpad-btn" id="btn-stay">•</button>
       <button class="dpad-btn" id="btn-right">→</button>
 
-      <div class="dpad-btn empty"></div>
+      <button class="dpad-btn diag" id="btn-downleft">↙</button>
       <button class="dpad-btn" id="btn-down">↓</button>
-      <div class="dpad-btn empty"></div>
+      <button class="dpad-btn diag" id="btn-downright">↘</button>
     </div>
   </div>
 
@@ -159,12 +168,20 @@
     const timerBar     = document.getElementById('timer-bar');
     const modeBadge    = document.getElementById('mode-badge');
 
-    const dpadBtns = ['btn-up','btn-down','btn-left','btn-right','btn-stay']
-      .map(id => document.getElementById(id));
-    const actionMap = { 'btn-up':'up', 'btn-down':'down', 'btn-left':'left', 'btn-right':'right', 'btn-stay':'stay' };
+    const ALL_BTN_IDS = ['btn-up','btn-down','btn-left','btn-right','btn-stay',
+                         'btn-upleft','btn-upright','btn-downleft','btn-downright'];
+    const dpadBtns = ALL_BTN_IDS.map(id => document.getElementById(id)).filter(Boolean);
+    const actionMap = {
+      'btn-up':'up', 'btn-down':'down', 'btn-left':'left', 'btn-right':'right', 'btn-stay':'stay',
+      'btn-upleft':'upleft', 'btn-upright':'upright', 'btn-downleft':'downleft', 'btn-downright':'downright',
+    };
 
     function setControlsEnabled(enabled) {
       dpadBtns.forEach(b => b.disabled = !enabled);
+    }
+
+    function applyMovementType(type) {
+      document.body.classList.toggle('diagonal', type === 'diagonal');
     }
 
     const CLASS_BG = { barbarian: '#fce8e8', wizard: '#e8eeff', healer: '#fefce8' };
@@ -182,11 +199,15 @@
     playerNameEl.textContent = playerName;
 
     // D-pad button wiring
-    document.getElementById('btn-up').addEventListener('click',    () => socket.emit('arena:move', 'up'));
-    document.getElementById('btn-down').addEventListener('click',  () => socket.emit('arena:move', 'down'));
-    document.getElementById('btn-left').addEventListener('click',  () => socket.emit('arena:move', 'left'));
-    document.getElementById('btn-right').addEventListener('click', () => socket.emit('arena:move', 'right'));
-    document.getElementById('btn-stay').addEventListener('click',  () => socket.emit('arena:attack'));
+    document.getElementById('btn-up').addEventListener('click',        () => socket.emit('arena:move', 'up'));
+    document.getElementById('btn-down').addEventListener('click',      () => socket.emit('arena:move', 'down'));
+    document.getElementById('btn-left').addEventListener('click',      () => socket.emit('arena:move', 'left'));
+    document.getElementById('btn-right').addEventListener('click',     () => socket.emit('arena:move', 'right'));
+    document.getElementById('btn-upleft').addEventListener('click',    () => socket.emit('arena:move', 'upleft'));
+    document.getElementById('btn-upright').addEventListener('click',   () => socket.emit('arena:move', 'upright'));
+    document.getElementById('btn-downleft').addEventListener('click',  () => socket.emit('arena:move', 'downleft'));
+    document.getElementById('btn-downright').addEventListener('click', () => socket.emit('arena:move', 'downright'));
+    document.getElementById('btn-stay').addEventListener('click',      () => socket.emit('arena:attack'));
 
     // ── Socket events ─────────────────────────────────────────────────
     socket.on('connect', () => {
@@ -202,11 +223,12 @@
       setControlsEnabled(false);
     });
 
-    socket.on('arena:joined', ({ x, y, colorIndex, playerClass }) => {
+    socket.on('arena:joined', ({ x, y, colorIndex, playerClass, movementType }) => {
       playerPosEl.textContent = `${x}, ${y}`;
       playerDotEl.className   = `pc-${colorIndex}`;
       playerDotEl.style.background = '';
       applyClass(playerClass || 'barbarian');
+      applyMovementType(movementType || 'cardinal');
     });
 
     socket.on('arena:class-update', (cls) => applyClass(cls));

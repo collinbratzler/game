@@ -234,22 +234,22 @@
       const byCell = {};
       state.players.forEach(p => {
         const k = `${p.x},${p.y}`;
-        if (!byCell[k]) byCell[k] = { players: [], enemy: false };
+        if (!byCell[k]) byCell[k] = { players: [], enemyCount: 0 };
         byCell[k].players.push(p);
       });
-      if (state.enemy) {
-        const k = `${state.enemy.x},${state.enemy.y}`;
-        if (!byCell[k]) byCell[k] = { players: [], enemy: false };
-        byCell[k].enemy = true;
-      }
+      (state.enemies || []).forEach(enemy => {
+        const k = `${enemy.x},${enemy.y}`;
+        if (!byCell[k]) byCell[k] = { players: [], enemyCount: 0 };
+        byCell[k].enemyCount++;
+      });
 
       // Render tokens
-      Object.entries(byCell).forEach(([key, { players: cellPlayers, enemy: hasEnemy }]) => {
+      Object.entries(byCell).forEach(([key, { players: cellPlayers, enemyCount }]) => {
         const [x, y] = key.split(',').map(Number);
         const cell   = cells[y]?.[x];
         if (!cell?.classList.contains('cell')) return;
 
-        const n     = cellPlayers.length + (hasEnemy ? 1 : 0);
+        const n     = cellPlayers.length + enemyCount;
         const pct   = n === 1 ? 68 : n <= 4 ? 42 : 27;
         const fSize = n === 1 ? '0.65em' : n <= 4 ? '0.42em' : '0.28em';
 
@@ -262,7 +262,7 @@
           cell.appendChild(t);
         });
 
-        if (hasEnemy) {
+        for (let e = 0; e < enemyCount; e++) {
           const t = document.createElement('div');
           t.className   = 'enemy-token';
           t.style.width = t.style.height = `${pct}%`;

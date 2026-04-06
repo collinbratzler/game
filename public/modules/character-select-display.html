@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Character Select</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      background: #0d0d1a;
+      color: #e8e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: #f0c060;
+    }
+
+    #subtitle {
+      color: #5a5a80;
+      font-size: 0.85rem;
+      letter-spacing: 2px;
+    }
+
+    #player-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+      max-width: 960px;
+      padding: 0 32px;
+    }
+
+    .player-card {
+      background: #141428;
+      border: 2px solid #2a2a4a;
+      border-radius: 16px;
+      padding: 18px 22px;
+      min-width: 165px;
+      text-align: center;
+      transition: border-color 0.4s, box-shadow 0.4s;
+    }
+    .player-card.ready {
+      border-color: #2e7d32;
+      box-shadow: 0 0 20px rgba(46,125,50,0.2);
+    }
+
+    .p-icon  { font-size: 2.2rem; margin-bottom: 8px; }
+    .p-name  { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+    .p-class { font-size: 0.8rem; margin-bottom: 8px; }
+    .p-details { font-size: 0.72rem; color: #5a5a80; line-height: 1.7; margin-bottom: 8px; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .badge.ready    { background: #132213; color: #4caf50; }
+    .badge.choosing { background: #1a1a2e; color: #5a5a80; }
+
+    #no-players { color: #2a2a4a; font-size: 1rem; letter-spacing: 2px; }
+
+    .dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>✦ Character Select ✦</h1>
+  <div id="subtitle">Players are choosing their heroes</div>
+
+  <div id="player-list">
+    <div id="no-players">Waiting for players…</div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const CLASS_ICONS  = { barbarian:'⚔', wizard:'🔮', healer:'💚', rogue:'🗡' };
+    const CLASS_COLORS = { barbarian:'#e96a6a', wizard:'#4a9de0', healer:'#4caf7d', rogue:'#9b8afb' };
+    const MOVE_LABELS  = { cardinal:'✦ Cardinal', diagonal:'◈ Diagonal' };
+    const ATK_LABELS   = { melee:'⚔ Melee', area:'💥 Area', ranged:'🏹 Ranged', pierce:'⚡ Pierce' };
+    const PALETTE      = ['#e96a6a','#f59e42','#4caf7d','#4a9de0','#9b8afb','#f06292','#26c6da','#a3c85a'];
+
+    const playerList = document.getElementById('player-list');
+    const noPlayers  = document.getElementById('no-players');
+
+    function render(players) {
+      playerList.innerHTML = '';
+      if (!players.length) { playerList.appendChild(noPlayers); return; }
+
+      players.forEach(p => {
+        const done  = p.charSelectDone;
+        const cls   = p.playerClass || '';
+        const icon  = CLASS_ICONS[cls]  || '?';
+        const color = CLASS_COLORS[cls] || '#888';
+        const dot   = PALETTE[p.colorIndex ?? 0] || '#888';
+
+        const card = document.createElement('div');
+        card.className = `player-card${done ? ' ready' : ''}`;
+        card.innerHTML = `
+          <div class="p-icon">${icon}</div>
+          <div class="p-name">${p.name}</div>
+          <div class="p-class" style="color:${color}">${cls ? cls.charAt(0).toUpperCase() + cls.slice(1) : '…'}</div>
+          ${done ? `
+          <div class="p-details">
+            <span class="dot" style="background:${dot}"></span>${MOVE_LABELS[p.movementType] || ''}<br>
+            ${ATK_LABELS[p.attackType] || ''}
+          </div>` : '<div class="p-details" style="min-height:38px"></div>'}
+          <div class="badge ${done ? 'ready' : 'choosing'}">${done ? '✓ Ready' : 'Choosing…'}</div>
+        `;
+        playerList.appendChild(card);
+      });
+    }
+
+    socket.on('connect', () => socket.emit('host:request-state'));
+    socket.on('host:state-update', ({ players }) => render(players));
+    socket.on('character-select:player-ready', () => socket.emit('host:request-state'));
+  </script>
+</body>
+</html>
