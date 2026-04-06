@@ -40,12 +40,14 @@ const arena = {
   walls:       [], //i dont think we need walls anymore, they will just be included in the ajaceny matrix as empty (or maybe 2 for wall)
 
   // Turn / timer
+  // freeze should be changes to pause. also, there should be a set up phase that is the default where players cant move and the dm can assign starting locations and add enemies
   mode:           'freeze',  // 'freeze' | 'free' | 'turn' | 'clock'
   timerEnabled:   false,
   timerSeconds:   8,
   clockSeconds:   5,
   currentTurnIdx: 0,
   turnOrder:      [],        // socketId strings + ENEMY_TURN_ID sentinel
+  // the admin should be able to assign turn order in set up phase and add enemies within turn order
   pendingActions: {},        // socketId → dir string (clock mode)
   timerInterval:  null,
   timeLeft:       0,
@@ -64,6 +66,7 @@ function init(io, registry, addLog) {
 }
 
 // ── Boundary helpers ───────────────────────────────────────────────────
+// rewrite boundry helpers to account for arena grid changes and update where appropriate 
 function makeInBounds() {
   if (arena.shape === 'circle') {
     const c = Math.floor(arena.gridSize / 2);
@@ -77,6 +80,7 @@ function isWall(x, y)    { return arena.walls.some(w => w.x === x && w.y === y);
 function canMoveTo(x, y) { return makeInBounds()(x, y) && !isWall(x, y); }
 
 // ── Spawn helpers ──────────────────────────────────────────────────────
+// instead of spawn helpers, lets have the admin page be able to assign starting cooedinates to players. they all default to center of the map
 function _recalcCircle() {
   const n = Math.max(1, _registry.getArenaPlayers().length);
   arena.radius   = Math.max(5, 4 + Math.ceil(n / 2));
