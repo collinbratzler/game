@@ -23,6 +23,9 @@ const CLASS_COLORS = {
 // playerRegistry — nothing here should duplicate them.
 const arena = {
   // Grid
+  // Grid should no longer have shape, width, height, radius, or grid-size
+  // Instead, it should be an ajacency matrix with 1s for spots and 0s for empty
+  // It can default to 9x9 fully filled in 
   shape:    'rect',   // 'rect' | 'circle'
   width:    10,
   height:   8,
