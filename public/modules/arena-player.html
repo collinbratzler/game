@@ -11,20 +11,144 @@
 
     body {
       font-family: 'Inter', sans-serif;
-      background: var(--class-bg, #f7f6f3);
-      transition: background 0.4s;
-      color: #1a1a1a;
+      background: #0d0d1a;
+      color: #e8e8f0;
       height: 100vh;
       height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+      overflow-y: auto;
+      padding: 16px 16px max(16px, env(safe-area-inset-bottom));
       user-select: none;
     }
 
-    /* ── Header ── */
+    /* ── Selection screen ── */
+    #select-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 420px;
+      gap: 16px;
+    }
+
+    #select-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #4a9de0;
+      padding-top: 4px;
+    }
+
+    .sel-section { width: 100%; }
+    .sel-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 8px;
+    }
+    .divider { width: 100%; height: 1px; background: #1e1e38; }
+
+    /* Color swatches */
+    .color-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .color-swatch {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 0.12s, border-color 0.12s;
+    }
+    .color-swatch.selected {
+      border-color: #fff;
+      transform: scale(1.2);
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
+    }
+
+    /* Option buttons */
+    .opt-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .opt-grid-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .opt-btn {
+      background: #141428;
+      border: 2px solid #2a2a4a;
+      border-radius: 10px;
+      padding: 10px 6px;
+      cursor: pointer;
+      color: #e8e8f0;
+      text-align: center;
+      touch-action: manipulation;
+      transition: border-color 0.12s, background 0.12s, transform 0.08s;
+    }
+    .opt-btn:active { transform: scale(0.96); }
+    .opt-btn.selected { border-color: #4a9de0; background: #0e1e30; color: #7ab8f5; }
+    .opt-btn .oi { font-size: 1.3rem; display: block; margin-bottom: 3px; }
+    .opt-btn .ol { font-size: 0.76rem; font-weight: 700; display: block; }
+    .opt-btn .od { font-size: 0.62rem; color: #444; display: block; margin-top: 2px; }
+    .opt-btn.selected .od { color: #4a7a9b; }
+
+    /* Ready button */
+    #ready-btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      background: #0d0d1a; color: #2a2a4a;
+      border: 2px solid #1a1a30;
+      border-radius: 12px;
+      cursor: not-allowed;
+      transition: all 0.2s;
+      touch-action: manipulation;
+    }
+    #ready-btn.active {
+      background: #132213; border-color: #2e7d32; color: #4caf50;
+      cursor: pointer; box-shadow: 0 0 20px rgba(76,175,80,0.15);
+    }
+    #ready-btn.active:active { transform: scale(0.97); }
+
+    /* Waiting view */
+    #waiting-view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 70vh;
+      gap: 14px;
+      text-align: center;
+    }
+    #waiting-view .big { font-size: 3.5rem; }
+    #waiting-view h2 { font-size: 1.1rem; font-weight: 700; color: #4caf50; }
+    #waiting-view .sub { font-size: 0.8rem; color: #444; }
+    .summary {
+      background: #141428; border: 1px solid #2a2a4a;
+      border-radius: 10px; padding: 12px 18px;
+      display: flex; flex-direction: column; gap: 8px;
+      min-width: 200px; text-align: left;
+    }
+    .sum-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+    .sum-label { font-size: 0.72rem; color: #444; }
+    .sum-val   { font-size: 0.8rem; font-weight: 600; color: #aaa; }
+
+    /* ── Game view ── */
+    #game-view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 100%;
+      background: var(--class-bg, #f7f6f3);
+      color: #1a1a1a;
+    }
+
+    body.in-game {
+      background: var(--class-bg, #f7f6f3);
+      padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+    }
+
     #header {
       width: 100%;
       display: flex;
@@ -33,7 +157,7 @@
     }
     #player-info { display: flex; align-items: center; gap: 10px; }
     #player-dot  { width: 14px; height: 14px; border-radius: 50%; background: #9b8afb; flex-shrink: 0; }
-    #player-name { font-size: 1rem; font-weight: 600; }
+    #player-name { font-size: 1rem; font-weight: 600; color: #1a1a1a; }
     #player-pos  { font-size: 0.8rem; color: #aaa; background: #f0f0ec; padding: 3px 8px; border-radius: 20px; }
 
     #conn-status { font-size: 0.75rem; color: #4caf50; }
@@ -48,7 +172,6 @@
     #mode-badge.turn   { background: #e8f5e9; color: #2e7d32; }
     #mode-badge.clock  { background: #fff3cd; color: #856404; }
 
-    /* ── Turn status ── */
     #turn-status {
       width: 100%; text-align: center;
       padding: 8px 16px; border-radius: 10px;
@@ -59,7 +182,6 @@
     #turn-status.waiting { background: #f0f0ec; color: #aaa; font-weight: 400; }
     #turn-status.clock   { background: #fff3cd; color: #856404; }
 
-    /* ── Timer bar ── */
     #timer-bar-wrap {
       width: 100%; max-width: 240px; height: 6px;
       background: #e8e6e1; border-radius: 3px; display: none;
@@ -69,14 +191,12 @@
       transition: width 0.9s linear, background 0.3s;
     }
 
-    /* ── Controls ── */
     #controls {
       display: flex; flex-direction: column;
       align-items: center; gap: 24px;
       flex: 1; justify-content: center; width: 100%;
     }
 
-    /* ── D-pad ── */
     #dpad {
       display: grid;
       grid-template-columns: repeat(3, 72px);
@@ -97,22 +217,15 @@
       background: #e8eeff; border-color: #4a9de0;
       color: #4a9de0; box-shadow: 0 0 0 2px rgba(74,157,224,0.3);
     }
-
-    /* Diagonal buttons: hidden in cardinal mode, shown in diagonal mode */
     .dpad-btn.diag {
       display: none; pointer-events: none;
-      font-size: 1.3rem;
-      border-color: #d0d0c8;
-      color: #bbb;
-      background: #fafaf8;
+      font-size: 1.3rem; border-color: #d0d0c8;
+      color: #bbb; background: #fafaf8;
     }
     body.diagonal .dpad-btn.diag { display: flex; pointer-events: auto; }
-
-    /* Stay/attack center button */
     #btn-stay { font-size: 2rem; color: #888; }
     #btn-stay:active { background: #f0f0ec; color: #555; }
 
-    /* Color palette */
     .pc-0 { background: #e96a6a; }
     .pc-1 { background: #f59e42; }
     .pc-2 { background: #4caf7d; }
@@ -125,40 +238,182 @@
 </head>
 <body>
 
-  <div id="header">
-    <div id="player-info">
-      <div id="player-dot"></div>
-      <span id="player-name">—</span>
-      <span id="player-pos">—</span>
+  <!-- ── Selection screen ── -->
+  <div id="select-view">
+    <div id="select-title">Load Out</div>
+
+    <div class="sel-section">
+      <div class="sel-label">Color</div>
+      <div class="color-row" id="color-row"></div>
     </div>
-    <span id="mode-badge"></span>
-    <span id="conn-status" class="off">connecting</span>
+
+    <div class="divider"></div>
+
+    <div class="sel-section">
+      <div class="sel-label">Movement</div>
+      <div class="opt-grid-2" id="move-grid"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="sel-section">
+      <div class="sel-label">Attack</div>
+      <div class="opt-grid-4" id="attack-grid"></div>
+    </div>
+
+    <button id="ready-btn" disabled>Ready</button>
   </div>
 
-  <div id="controls">
-    <div id="turn-status"></div>
-    <div id="timer-bar-wrap"><div id="timer-bar"></div></div>
-    <div id="dpad">
-      <button class="dpad-btn diag" id="btn-upleft">↖</button>
-      <button class="dpad-btn" id="btn-up">↑</button>
-      <button class="dpad-btn diag" id="btn-upright">↗</button>
+  <!-- Waiting for start -->
+  <div id="waiting-view">
+    <div class="big">⚔</div>
+    <h2>Ready!</h2>
+    <p class="sub">Waiting for host to start…</p>
+    <div class="summary" id="summary"></div>
+  </div>
 
-      <button class="dpad-btn" id="btn-left">←</button>
-      <button class="dpad-btn" id="btn-stay">•</button>
-      <button class="dpad-btn" id="btn-right">→</button>
+  <!-- ── Game view ── -->
+  <div id="game-view">
+    <div id="header">
+      <div id="player-info">
+        <div id="player-dot"></div>
+        <span id="player-name">—</span>
+        <span id="player-pos">—</span>
+      </div>
+      <span id="mode-badge"></span>
+      <span id="conn-status" class="off">connecting</span>
+    </div>
 
-      <button class="dpad-btn diag" id="btn-downleft">↙</button>
-      <button class="dpad-btn" id="btn-down">↓</button>
-      <button class="dpad-btn diag" id="btn-downright">↘</button>
+    <div id="controls">
+      <div id="turn-status"></div>
+      <div id="timer-bar-wrap"><div id="timer-bar"></div></div>
+      <div id="dpad">
+        <button class="dpad-btn diag" id="btn-upleft">↖</button>
+        <button class="dpad-btn" id="btn-up">↑</button>
+        <button class="dpad-btn diag" id="btn-upright">↗</button>
+
+        <button class="dpad-btn" id="btn-left">←</button>
+        <button class="dpad-btn" id="btn-stay">•</button>
+        <button class="dpad-btn" id="btn-right">→</button>
+
+        <button class="dpad-btn diag" id="btn-downleft">↙</button>
+        <button class="dpad-btn" id="btn-down">↓</button>
+        <button class="dpad-btn diag" id="btn-downright">↘</button>
+      </div>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const playerName = new URLSearchParams(location.search).get('name') || 'Unknown';
-
     const socket = io();
 
+    // ── Selection data ────────────────────────────────────────────────
+    const COLORS = [
+      '#e96a6a','#f59e42','#4caf7d','#4a9de0','#9b8afb','#f06292','#26c6da','#a3c85a'
+    ];
+    const MOVE_TYPES = [
+      { id: 'cardinal', icon: '✦', label: 'Cardinal', desc: '4 directions' },
+      { id: 'diagonal', icon: '◈', label: 'Diagonal', desc: '8 directions' },
+    ];
+    const ATTACK_TYPES = [
+      { id: 'melee',  icon: '⚔',  label: 'Melee',  desc: 'Adjacent cross' },
+      { id: 'area',   icon: '💥', label: 'Area',   desc: '3×3 around self' },
+      { id: 'ranged', icon: '🏹', label: 'Ranged', desc: '4-tile line ahead' },
+      { id: 'pierce', icon: '⚡', label: 'Pierce', desc: 'Full row or col' },
+    ];
+
+    let selColor  = 0;
+    let selMove   = 'cardinal';
+    let selAttack = 'melee';
+
+    // Build color swatches
+    const colorRow = document.getElementById('color-row');
+    COLORS.forEach((hex, i) => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch';
+      sw.style.background = hex;
+      sw.addEventListener('click', () => { selColor = i; renderSel(); });
+      colorRow.appendChild(sw);
+    });
+
+    // Build movement buttons
+    const moveGrid = document.getElementById('move-grid');
+    MOVE_TYPES.forEach(mt => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      btn.innerHTML = `<span class="oi">${mt.icon}</span><span class="ol">${mt.label}</span><span class="od">${mt.desc}</span>`;
+      btn.addEventListener('click', () => { selMove = mt.id; renderSel(); });
+      moveGrid.appendChild(btn);
+    });
+
+    // Build attack buttons
+    const attackGrid = document.getElementById('attack-grid');
+    ATTACK_TYPES.forEach(at => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      btn.innerHTML = `<span class="oi">${at.icon}</span><span class="ol">${at.label}</span><span class="od">${at.desc}</span>`;
+      btn.addEventListener('click', () => { selAttack = at.id; renderSel(); });
+      attackGrid.appendChild(btn);
+    });
+
+    function renderSel() {
+      Array.from(colorRow.children).forEach((sw, i) => sw.classList.toggle('selected', i === selColor));
+      Array.from(moveGrid.children).forEach((btn, i) => btn.classList.toggle('selected', MOVE_TYPES[i].id === selMove));
+      Array.from(attackGrid.children).forEach((btn, i) => btn.classList.toggle('selected', ATTACK_TYPES[i].id === selAttack));
+      const readyBtn = document.getElementById('ready-btn');
+      readyBtn.classList.add('active');
+      readyBtn.disabled = false;
+      readyBtn.textContent = 'Ready →';
+    }
+    renderSel();
+
+    // Ready button
+    document.getElementById('ready-btn').addEventListener('click', () => {
+      socket.emit('arena:player-ready', {
+        colorIndex:   selColor,
+        movementType: selMove,
+        attackType:   selAttack,
+      });
+
+      const ATTACK_LABELS = { melee:'Melee ⚔', area:'Area 💥', ranged:'Ranged 🏹', pierce:'Pierce ⚡' };
+      const MOVE_LABELS   = { cardinal:'Cardinal (4-way)', diagonal:'Diagonal (8-way)' };
+      document.getElementById('summary').innerHTML = `
+        <div class="sum-row">
+          <span class="sum-label">Color</span>
+          <span class="sum-val"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${COLORS[selColor]};vertical-align:middle;margin-right:5px;"></span>${COLORS[selColor]}</span>
+        </div>
+        <div class="sum-row">
+          <span class="sum-label">Movement</span>
+          <span class="sum-val">${MOVE_LABELS[selMove]}</span>
+        </div>
+        <div class="sum-row">
+          <span class="sum-label">Attack</span>
+          <span class="sum-val">${ATTACK_LABELS[selAttack]}</span>
+        </div>
+      `;
+      document.getElementById('select-view').style.display = 'none';
+      document.getElementById('waiting-view').style.display = 'flex';
+    });
+
+    // ── Transition to game ────────────────────────────────────────────
+    let gameStarted = false;
+
+    function showGameView() {
+      if (gameStarted) return;
+      gameStarted = true;
+      document.getElementById('select-view').style.display  = 'none';
+      document.getElementById('waiting-view').style.display = 'none';
+      document.getElementById('game-view').style.display    = 'flex';
+      document.body.style.background = '';
+      document.body.style.color      = '';
+      document.body.style.padding    = '20px 20px max(20px, env(safe-area-inset-bottom))';
+      document.body.style.justifyContent = 'space-between';
+    }
+
+    socket.on('arena:started', showGameView);
+
+    // ── Game view logic ───────────────────────────────────────────────
     const playerNameEl = document.getElementById('player-name');
     const playerPosEl  = document.getElementById('player-pos');
     const playerDotEl  = document.getElementById('player-dot');
@@ -168,21 +423,19 @@
     const timerBar     = document.getElementById('timer-bar');
     const modeBadge    = document.getElementById('mode-badge');
 
+    playerNameEl.textContent = playerName;
+
     const ALL_BTN_IDS = ['btn-up','btn-down','btn-left','btn-right','btn-stay',
                          'btn-upleft','btn-upright','btn-downleft','btn-downright'];
     const dpadBtns = ALL_BTN_IDS.map(id => document.getElementById(id)).filter(Boolean);
     const actionMap = {
-      'btn-up':'up', 'btn-down':'down', 'btn-left':'left', 'btn-right':'right', 'btn-stay':'stay',
-      'btn-upleft':'upleft', 'btn-upright':'upright', 'btn-downleft':'downleft', 'btn-downright':'downright',
+      'btn-up':'up','btn-down':'down','btn-left':'left','btn-right':'right','btn-stay':'stay',
+      'btn-upleft':'upleft','btn-upright':'upright','btn-downleft':'downleft','btn-downright':'downright',
     };
 
-    function setControlsEnabled(enabled) {
-      dpadBtns.forEach(b => b.disabled = !enabled);
-    }
+    function setControlsEnabled(enabled) { dpadBtns.forEach(b => b.disabled = !enabled); }
 
-    function applyMovementType(type) {
-      document.body.classList.toggle('diagonal', type === 'diagonal');
-    }
+    function applyMovementType(type) { document.body.classList.toggle('diagonal', type === 'diagonal'); }
 
     const CLASS_BG = { barbarian: '#fce8e8', wizard: '#e8eeff', healer: '#fefce8' };
     function applyClass(cls) {
@@ -191,14 +444,12 @@
 
     function updateModeBadge(mode) {
       const labels = { freeze:'Freeze', free:'Free', turn:'Turns', clock:'Clock' };
-      modeBadge.textContent = labels[mode] || mode;
-      modeBadge.className   = mode;
+      modeBadge.textContent   = labels[mode] || mode;
+      modeBadge.className     = mode;
       modeBadge.style.display = 'inline-block';
     }
 
-    playerNameEl.textContent = playerName;
-
-    // D-pad button wiring
+    // D-pad wiring
     document.getElementById('btn-up').addEventListener('click',        () => socket.emit('arena:move', 'up'));
     document.getElementById('btn-down').addEventListener('click',      () => socket.emit('arena:move', 'down'));
     document.getElementById('btn-left').addEventListener('click',      () => socket.emit('arena:move', 'left'));
@@ -209,12 +460,10 @@
     document.getElementById('btn-downright').addEventListener('click', () => socket.emit('arena:move', 'downright'));
     document.getElementById('btn-stay').addEventListener('click',      () => socket.emit('arena:attack'));
 
-    // ── Socket events ─────────────────────────────────────────────────
     socket.on('connect', () => {
       connStatusEl.textContent = 'connected';
       connStatusEl.className   = '';
       setControlsEnabled(true);
-      socket.emit('arena:join', playerName);
     });
 
     socket.on('disconnect', () => {
@@ -233,9 +482,14 @@
 
     socket.on('arena:class-update', (cls) => applyClass(cls));
 
-    let currentMode = 'freeze';
+    let currentMode = 'free';
 
     socket.on('arena:state', (st) => {
+      // If game is already running and we haven't transitioned yet (e.g. reconnect)
+      if (st.mode !== 'setup') showGameView();
+
+      if (!gameStarted) return;
+
       const me = st.players.find(p => p.name === playerName);
       if (me) playerPosEl.textContent = `${me.x}, ${me.y}`;
       currentMode = st.mode;
@@ -261,14 +515,12 @@
           turnStatusEl.textContent = 'Choose your action!';
         setControlsEnabled(true);
       } else {
-        // free
         turnStatusEl.style.display = 'none';
         timerWrap.style.display    = 'none';
         setControlsEnabled(true);
       }
     });
 
-    // Clock mode: highlight selected button
     let selectedAction = 'stay';
 
     function updateSelectedHighlight(action) {
@@ -287,10 +539,7 @@
     socket.on('arena:action-selected', (action) => {
       if (currentMode === 'clock') updateSelectedHighlight(action);
     });
-
-    socket.on('arena:clock-round-end', () => {
-      clearSelectedHighlight();
-    });
+    socket.on('arena:clock-round-end', () => clearSelectedHighlight());
 
     socket.on('arena:clock-timer', ({ timeLeft, total }) => {
       if (timeLeft <= 0) { timerWrap.style.display = 'none'; return; }
@@ -299,10 +548,6 @@
       timerBar.style.width      = `${pct}%`;
       timerBar.style.background = timeLeft <= 2 ? '#e96a6a'
         : timeLeft <= Math.floor(total / 2) ? '#f59e42' : '#a0c85a';
-      if (currentMode === 'clock') {
-        turnStatusEl.style.display = 'block';
-        turnStatusEl.className     = 'clock';
-      }
     });
 
     socket.on('arena:turn-timer', ({ timeLeft, total }) => {

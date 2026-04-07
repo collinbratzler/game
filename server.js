@@ -1,12 +1,17 @@
-'use strict';
+'use strict'; // why?
 
+// Server Essentials
 const express    = require('express');
 const http       = require('http');
 const { Server } = require('socket.io');
-const QRCode     = require('qrcode');
+
+// JavaScript Essentials
 const os         = require('os');
 const fs         = require('fs');
 const path       = require('path');
+
+// Here we just have a QR code cause why not?
+const QRCode     = require('qrcode');
 
 const registry   = require('./engine/playerRegistry');
 const arenaEng   = require('./engine/arenaEngine');
@@ -160,6 +165,10 @@ io.on('connection', (socket) => {
     io.emit('host:state-update', getStateSnapshot());
   });
 
+  socket.on('host:arena-start', (opts) => {
+    arenaEng.handleStart(opts);
+  });
+
   // ── Minigame ──────────────────────────────────────────────────────────
   socket.on('minigame:complete', ({ name, game, result }) => {
     const p = registry.getByName(name);
@@ -203,6 +212,20 @@ io.on('connection', (socket) => {
   });
 
   // ── Arena ──────────────────────────────────────────────────────────────
+  socket.on('arena:player-ready', ({ colorIndex, movementType, attackType }) => {
+    const p = registry.get(socket.id);
+    if (!p) return;
+    registry.update(socket.id, {
+      colorIndex:     colorIndex ?? p.colorIndex,
+      boots:          movementType || 'cardinal',
+      weapon:         attackType   || 'melee',
+      charSelectDone: true,
+    });
+    io.emit('arena:state',       arenaEng.getSnapshot());
+    io.emit('host:state-update', getStateSnapshot());
+    addLog(`${p.name}: ready (${movementType} | ${attackType})`, 'info');
+  });
+
   socket.on('arena:join',          (name) => arenaEng.handleJoin(socket.id, name));
   socket.on('arena:move',          (dir)  => arenaEng.handleMove(socket.id, dir));
   socket.on('arena:attack',        ()     => arenaEng.handleAttack(socket.id));
@@ -213,6 +236,9 @@ io.on('connection', (socket) => {
     registry.create(socket.id, name);
     socket.emit('player:load-module', session.currentModule);
     io.emit('host:state-update', getStateSnapshot());
+    if (session.currentModule === 'arena') {
+      io.emit('arena:state', arenaEng.getSnapshot());
+    }
     addLog(`"${name}" joined`, 'info');
   });
 

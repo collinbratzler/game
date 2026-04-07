@@ -290,12 +290,17 @@ function getSnapshot() {
   const curPlayer = (curSid && curSid !== ENEMY_TURN_ID) ? _registry.get(curSid) : null;
   const currentTurn = curSid === ENEMY_TURN_ID ? 'Enemy' : (curPlayer ? curPlayer.name : null);
 
+  const lobbyPlayers = arena.mode === 'setup'
+    ? _registry.getAll().map(p => ({ name: p.name, colorIndex: p.colorIndex, charSelectDone: p.charSelectDone }))
+    : [];
+
   return {
     grid:           arena.grid,
     pvp:            arena.pvp,
     enemies:        arena.enemies,
     enemySpawns:    arena.enemySpawns,
     players:        _registry.getArenaPlayers().map(_registry.toArenaShape),
+    lobbyPlayers,
     mode:           arena.mode,
     timerEnabled:   arena.timerEnabled,
     timerSeconds:   arena.timerSeconds,
@@ -445,6 +450,67 @@ function handleConfig({ grid, pvp }) {
   _io.emit('arena:state', getSnapshot());
 }
 
+function handleStart({ width, height, enemyCount }) {
+  _clearTimer();
+
+  const w = Math.max(2, Math.min(30, Math.floor(width  || 10)));
+  const h = Math.max(2, Math.min(30, Math.floor(height || 8)));
+  const numEnemies = Math.max(0, Math.min(20, Math.floor(enemyCount || 0)));
+
+  arena.grid           = Array.from({ length: h }, () => Array(w).fill(1));
+  arena.pvp            = false;
+  arena.mode           = 'free';
+  arena.currentTurnIdx = 0;
+  arena.pendingActions = {};
+  arena.turnOrder      = [];
+
+  // Reset any players currently marked in-arena
+  for (const p of _registry.getArenaPlayers()) {
+    _registry.update(p.socketId, { inArena: false });
+  }
+
+  // Fisher-Yates shuffle of all cells for random placement
+  const cells = [];
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      cells.push({ x, y });
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+
+  // Place every connected player at a unique random cell
+  let cellIdx = 0;
+  for (const p of _registry.getAll()) {
+    if (cellIdx >= cells.length) break;
+    const { x, y } = cells[cellIdx++];
+    _registry.update(p.socketId, { inArena: true, x, y, lastDir: 'up' });
+    arena.turnOrder.push(p.socketId);
+    arena.pendingActions[p.socketId] = 'stay';
+
+    const updated = _registry.get(p.socketId);
+    _io.to(p.socketId).emit('arena:joined', {
+      name:         updated.name,
+      x, y,
+      colorIndex:   updated.colorIndex,
+      playerClass:  updated.playerClass,
+      movementType: items.getMovementType(updated),
+      attackType:   updated.weapon,
+    });
+  }
+
+  // Place enemies at remaining cells
+  arena.enemySpawns = [];
+  for (let i = 0; i < numEnemies && cellIdx < cells.length; i++, cellIdx++) {
+    arena.enemySpawns.push({ x: cells[cellIdx].x, y: cells[cellIdx].y, ai: 'chaser', sprite: 'default' });
+  }
+  _spawnEnemiesFromConfig();
+
+  _io.emit('arena:started');
+  _io.emit('arena:state', getSnapshot());
+  _addLog(`Arena started: ${w}×${h}, ${numEnemies} enemies`, 'action');
+}
+
 function handleMode(mode) {
   if (!['setup', 'pause', 'free', 'turn', 'clock'].includes(mode)) return;
   _clearTimer();
@@ -536,6 +602,7 @@ module.exports = {
   handleDisconnect,
   handleReset,
   handleConfig,
+  handleStart,
   handleMode,
   handleTimerToggle,
   handleTimerSet,

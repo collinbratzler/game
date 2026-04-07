@@ -15,16 +15,125 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      /* themed dynamically via JS */
       background: var(--bg, #0d0d1a);
       color: var(--fg, #eee);
       transition: background 0.4s, color 0.4s;
     }
 
-    /* Themes */
     body.theme-dungeon { --bg: #0d0d1a; --fg: #eee; --cell-bg: #14142a; --cell-void: transparent; --legend-color: #666; --title-color: #444; --dim-color: #333; --flash-default: #ff5c5c; }
     body.theme-arena   { --bg: #b89a5a; --fg: #4a3010; --cell-bg: #dcc890; --cell-void: transparent; --legend-color: #7a5a20; --title-color: #7a5a20; --dim-color: #7a5a20; --flash-default: #e96a6a; }
 
+    /* ── Lobby overlay ── */
+    #lobby {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      background: #0d0d1a;
+      z-index: 10;
+    }
+    #lobby-title {
+      font-size: 2.2rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #4a9de0;
+    }
+    #lobby-config {
+      display: flex;
+      gap: 24px;
+      align-items: flex-end;
+    }
+    .lobby-field { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .lobby-field label {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #444;
+    }
+    .lobby-field input {
+      width: 72px;
+      padding: 8px 6px;
+      background: #141428;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      color: #eee;
+      font-family: monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-align: center;
+    }
+    .lobby-field input:focus { outline: none; border-color: #4a9de0; }
+
+    #lobby-start-btn {
+      padding: 12px 28px;
+      background: #132213;
+      border: 1px solid #2e7d32;
+      color: #4caf50;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      transition: background 0.15s;
+      align-self: flex-end;
+    }
+    #lobby-start-btn:hover { background: #1a3a1a; }
+    #lobby-start-btn:active { transform: scale(0.97); }
+
+    #lobby-players {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 340px;
+    }
+    #lobby-players-label {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #333;
+      margin-bottom: 2px;
+    }
+    .lobby-player {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #141428;
+      border: 1px solid #1e1e38;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .lobby-player.ready { border-color: #2e7d32; background: #0d1a0d; }
+    .lobby-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .lobby-player-name { flex: 1; color: #aaa; }
+    .lobby-player.ready .lobby-player-name { color: #eee; }
+    .lobby-status {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .lobby-status.ready    { background: #1a2e1a; color: #4caf50; }
+    .lobby-status.not-ready { background: #1e1e1e; color: #444; }
+
+    #lobby-empty {
+      font-size: 0.75rem;
+      color: #333;
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    /* ── Game overlay ── */
     #header {
       position: absolute;
       top: 14px; left: 0; right: 0;
@@ -70,10 +179,7 @@
       align-items: center; justify-content: center;
       gap: 1px;
     }
-    .cell-wall {
-      background: #555;
-      border-radius: 3px;
-    }
+    .cell-wall { background: #555; border-radius: 3px; }
     body.theme-arena .cell-wall { background: #8a6030; }
     .cell-void { background: transparent; }
 
@@ -126,6 +232,32 @@
 </head>
 <body class="theme-dungeon">
 
+  <!-- Lobby overlay (shown during setup mode) -->
+  <div id="lobby">
+    <div id="lobby-title">Arena</div>
+    <div id="lobby-config">
+      <div class="lobby-field">
+        <label>Width</label>
+        <input id="lobby-w" type="number" min="4" max="30" value="10" />
+      </div>
+      <div class="lobby-field">
+        <label>Height</label>
+        <input id="lobby-h" type="number" min="4" max="30" value="8" />
+      </div>
+      <div class="lobby-field">
+        <label>Enemies</label>
+        <input id="lobby-enemies" type="number" min="0" max="20" value="3" />
+      </div>
+      <button id="lobby-start-btn">Start →</button>
+    </div>
+    <div id="lobby-players">
+      <div id="lobby-players-label">Players</div>
+      <div id="lobby-player-list"></div>
+      <div id="lobby-empty">No players connected.</div>
+    </div>
+  </div>
+
+  <!-- Game view -->
   <div id="header">
     <span id="title">Arena</span>
     <span id="dim-label"></span>
@@ -149,9 +281,61 @@
     const dimLabel   = document.getElementById('dim-label');
     const turnBanner = document.getElementById('turn-banner');
     const modeBadge  = document.getElementById('mode-badge');
+    const lobbyEl        = document.getElementById('lobby');
+    const lobbyWEl       = document.getElementById('lobby-w');
+    const lobbyHEl       = document.getElementById('lobby-h');
+    const lobbyEEl       = document.getElementById('lobby-enemies');
+    const lobbyListEl    = document.getElementById('lobby-player-list');
+    const lobbyEmptyEl   = document.getElementById('lobby-empty');
+    const lobbyStartBtn  = document.getElementById('lobby-start-btn');
+
+    const COLORS = ['#e96a6a','#f59e42','#4caf7d','#4a9de0','#9b8afb','#f06292','#26c6da','#a3c85a'];
 
     let currentState = null;
-    let cells        = [];   // cells[y][x] = element or null (void)
+    let cells        = [];
+
+    // ── Start button ─────────────────────────────────────────────────
+    lobbyStartBtn.addEventListener('click', () => {
+      const w = parseInt(lobbyWEl.value, 10);
+      const h = parseInt(lobbyHEl.value, 10);
+      const e = parseInt(lobbyEEl.value, 10);
+      if (!isNaN(w) && !isNaN(h) && !isNaN(e)) {
+        socket.emit('host:arena-start', { width: w, height: h, enemyCount: e });
+      }
+    });
+
+    // ── Lobby ────────────────────────────────────────────────────────
+    function renderLobby(state) {
+      lobbyEl.style.display = 'flex';
+
+      const { lobbyPlayers } = state;
+      const players = lobbyPlayers || [];
+
+      lobbyListEl.innerHTML = '';
+      lobbyEmptyEl.style.display = players.length === 0 ? 'block' : 'none';
+
+      players.forEach(({ name, colorIndex, charSelectDone }) => {
+        const el = document.createElement('div');
+        el.className = 'lobby-player' + (charSelectDone ? ' ready' : '');
+
+        const dot = document.createElement('div');
+        dot.className = 'lobby-dot';
+        dot.style.background = COLORS[colorIndex] || '#555';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'lobby-player-name';
+        nameEl.textContent = name;
+
+        const statusEl = document.createElement('span');
+        statusEl.className = 'lobby-status ' + (charSelectDone ? 'ready' : 'not-ready');
+        statusEl.textContent = charSelectDone ? 'Ready' : 'Not ready';
+
+        el.appendChild(dot);
+        el.appendChild(nameEl);
+        el.appendChild(statusEl);
+        lobbyListEl.appendChild(el);
+      });
+    }
 
     // ── Grid building ────────────────────────────────────────────────
     function cellSize(cols, rows) {
@@ -160,15 +344,9 @@
       return Math.max(14, Math.floor(Math.min(maxW, maxH, 72)));
     }
 
-    function inCircle(x, y, gridSize, radius) {
-      const c = Math.floor(gridSize / 2);
-      return (x - c) * (x - c) + (y - c) * (y - c) <= radius * radius;
-    }
-
-    function buildGrid(state) {
-      const { shape, width, height, gridSize, radius, walls } = state;
-      const cols = shape === 'circle' ? gridSize : width;
-      const rows = shape === 'circle' ? gridSize : height;
+    function buildGrid(grid) {
+      const rows = grid.length;
+      const cols = grid[0] ? grid[0].length : 0;
       const sz   = cellSize(cols, rows);
 
       gridEl.style.gridTemplateColumns = `repeat(${cols}, ${sz}px)`;
@@ -176,17 +354,15 @@
       gridEl.innerHTML = '';
       cells = [];
 
-      const wallSet = new Set((walls || []).map(w => `${w.x},${w.y}`));
-
       for (let y = 0; y < rows; y++) {
         cells[y] = [];
         for (let x = 0; x < cols; x++) {
           const div = document.createElement('div');
-          const inBounds = shape === 'circle' ? inCircle(x, y, gridSize, radius) : true;
-          if (!inBounds) {
-            div.className    = 'cell-void';
-            cells[y][x]      = null;
-          } else if (wallSet.has(`${x},${y}`)) {
+          const val = grid[y][x];
+          if (val === 0) {
+            div.className = 'cell-void';
+            cells[y][x]   = null;
+          } else if (val === 2) {
             div.className    = 'cell-wall';
             div.style.width  = `${sz}px`;
             div.style.height = `${sz}px`;
@@ -195,42 +371,42 @@
             div.className    = 'cell';
             div.dataset.x    = x;
             div.dataset.y    = y;
+            div.style.width  = `${sz}px`;
+            div.style.height = `${sz}px`;
             cells[y][x]      = div;
           }
           gridEl.appendChild(div);
         }
       }
 
-      // Dimension label
-      dimLabel.textContent = shape === 'circle'
-        ? `⌀ ${radius * 2 + 1}`
-        : `${width} × ${height}`;
+      const cols2 = grid[0]?.length ?? 0;
+      dimLabel.textContent = `${cols2} × ${rows}`;
     }
 
     // ── Rendering ────────────────────────────────────────────────────
     function renderState(state) {
-      const { shape, width, height, gridSize, radius } = state;
-      const cols = shape === 'circle' ? gridSize : width;
-      const rows = shape === 'circle' ? gridSize : height;
+      if (state.mode === 'setup') {
+        renderLobby(state);
+        return;
+      }
+
+      lobbyEl.style.display = 'none';
+
+      const { grid } = state;
+      if (!grid) return;
 
       const needRebuild = !currentState
-        || currentState.shape    !== shape
-        || currentState.width    !== width
-        || currentState.height   !== height
-        || currentState.gridSize !== gridSize
-        || currentState.radius   !== radius
-        || JSON.stringify(currentState.walls) !== JSON.stringify(state.walls);
+        || JSON.stringify(currentState.grid) !== JSON.stringify(grid);
 
-      if (needRebuild) buildGrid(state);
+      if (needRebuild) buildGrid(grid);
       currentState = state;
 
-      // Apply theme
-      document.body.className = shape === 'circle' ? 'theme-arena' : 'theme-dungeon';
+      document.body.className = 'theme-dungeon';
 
       // Clear all tokens
-      cells.forEach(row => row.forEach(cell => { if (cell?.classList.contains('cell')) cell.innerHTML = ''; }));
+      cells.forEach(row => row?.forEach(cell => { if (cell?.classList.contains('cell')) cell.innerHTML = ''; }));
 
-      // Group by cell position
+      // Group tokens by cell
       const byCell = {};
       state.players.forEach(p => {
         const k = `${p.x},${p.y}`;
@@ -243,7 +419,6 @@
         byCell[k].enemyCount++;
       });
 
-      // Render tokens
       Object.entries(byCell).forEach(([key, { players: cellPlayers, enemyCount }]) => {
         const [x, y] = key.split(',').map(Number);
         const cell   = cells[y]?.[x];
@@ -275,10 +450,10 @@
       // Legend
       legendEl.innerHTML = '';
       state.players.forEach(({ name, colorIndex }) => {
-        const item  = document.createElement('div');
+        const item = document.createElement('div');
         item.className = 'legend-item';
-        const dot   = document.createElement('div');
-        dot.className  = `legend-dot pc-${colorIndex}`;
+        const dot = document.createElement('div');
+        dot.className = `legend-dot pc-${colorIndex}`;
         const label = document.createElement('span');
         label.textContent = name;
         item.appendChild(dot); item.appendChild(label);
@@ -287,26 +462,23 @@
 
       // Turn banner
       if (state.mode === 'turn' && state.currentTurn) {
-        turnBanner.textContent    = `${state.currentTurn}'s turn`;
-        turnBanner.style.display  = 'block';
+        turnBanner.textContent   = `${state.currentTurn}'s turn`;
+        turnBanner.style.display = 'block';
       } else {
-        turnBanner.style.display  = 'none';
+        turnBanner.style.display = 'none';
       }
 
       // Mode badge
       const modeLabels = { freeze:'Freeze', free:'Free', turn:'Turns', clock:'Clock' };
-      modeBadge.textContent    = modeLabels[state.mode] || state.mode;
-      modeBadge.className      = state.mode;
-      modeBadge.style.display  = 'block';
+      modeBadge.textContent   = modeLabels[state.mode] || state.mode;
+      modeBadge.className     = state.mode;
+      modeBadge.style.display = 'block';
 
-      // Title
       const titleEl = document.getElementById('title');
-      if (state.pvp)            titleEl.textContent = 'PvP Arena';
-      else if (state.hasEnemy)  titleEl.textContent = 'Dungeon';
-      else                      titleEl.textContent = 'Arena';
+      titleEl.textContent = state.pvp ? 'PvP Arena' : (state.enemies?.length > 0 ? 'Dungeon' : 'Arena');
 
-      emptyMsg.style.display   = state.players.length === 0 ? 'block' : 'none';
-      gridEl.style.display     = state.players.length === 0 ? 'none'  : 'grid';
+      emptyMsg.style.display = state.players.length === 0 ? 'block' : 'none';
+      gridEl.style.display   = state.players.length === 0 ? 'none'  : 'grid';
     }
 
     // ── Flash ─────────────────────────────────────────────────────────
@@ -326,7 +498,7 @@
     socket.on('arena:area-attack', ({ positions, color }) => positions.forEach(({ x, y }) => flashCell(x, y, color)));
 
     window.addEventListener('resize', () => {
-      if (currentState) buildGrid(currentState);
+      if (currentState && currentState.mode !== 'setup') buildGrid(currentState.grid);
     });
   </script>
 </body>
