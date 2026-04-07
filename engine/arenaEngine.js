@@ -3,7 +3,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const items  = require('./itemRegistry');
+const items   = require('./itemRegistry');
 const enemies = require('./enemyEngine');
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -22,32 +22,25 @@ const CLASS_COLORS = {
 // Pure config / timing / structural data. Player positions live in
 // playerRegistry — nothing here should duplicate them.
 const arena = {
-  // Grid
-  // Grid should no longer have shape, width, height, radius, or grid-size
-  // Instead, it should be an ajacency matrix with 1s for spots and 0s for empty
-  // It can default to 9x9 fully filled in 
-  shape:    'rect',   // 'rect' | 'circle'
-  width:    10,
-  height:   8,
-  radius:   5,        // circle only
-  gridSize: 11,       // circle only: 2*radius+1
+  // Grid as adjacency matrix: 1 = open cell, 0 = empty/impassable, 2 = wall
+  // Default: 9×9 fully open
+  grid: Array.from({ length: 9 }, () => Array(9).fill(1)),
 
   // Rules
   pvp:         false,
-  hasEnemy:    true, //no more hasEnemy attribute. it should have a list of enemies with their ai and sprite and default to empty
-  enemySpawns: [{ x: 9, y: 7, ai: 'chaser' }],
-  enemies:     [],
-  walls:       [], //i dont think we need walls anymore, they will just be included in the ajaceny matrix as empty (or maybe 2 for wall)
+  enemies:     [],   // list of { id, x, y, ai, sprite }
+  enemySpawns: [],   // list of { x, y, ai, sprite }
 
   // Turn / timer
-  // freeze should be changes to pause. also, there should be a set up phase that is the default where players cant move and the dm can assign starting locations and add enemies
-  mode:           'freeze',  // 'freeze' | 'free' | 'turn' | 'clock'
+  // 'setup' is the default: players cannot move; DM assigns positions and enemies
+  // 'pause' replaces the old 'freeze'
+  mode:           'setup',  // 'setup' | 'pause' | 'free' | 'turn' | 'clock'
   timerEnabled:   false,
   timerSeconds:   8,
   clockSeconds:   5,
   currentTurnIdx: 0,
   turnOrder:      [],        // socketId strings + ENEMY_TURN_ID sentinel
-  // the admin should be able to assign turn order in set up phase and add enemies within turn order
+  // admin can assign turn order in setup phase and add enemies within turn order
   pendingActions: {},        // socketId → dir string (clock mode)
   timerInterval:  null,
   timeLeft:       0,
@@ -66,67 +59,40 @@ function init(io, registry, addLog) {
 }
 
 // ── Boundary helpers ───────────────────────────────────────────────────
-// rewrite boundry helpers to account for arena grid changes and update where appropriate 
+// Checks the adjacency matrix: a cell is in-bounds if it exists and is not 0.
 function makeInBounds() {
-  if (arena.shape === 'circle') {
-    const c = Math.floor(arena.gridSize / 2);
-    const r = arena.radius;
-    return (x, y) => (x - c) * (x - c) + (y - c) * (y - c) <= r * r;
-  }
-  return (x, y) => x >= 0 && x < arena.width && y >= 0 && y < arena.height;
-}
-
-function isWall(x, y)    { return arena.walls.some(w => w.x === x && w.y === y); }
-function canMoveTo(x, y) { return makeInBounds()(x, y) && !isWall(x, y); }
-
-// ── Spawn helpers ──────────────────────────────────────────────────────
-// instead of spawn helpers, lets have the admin page be able to assign starting cooedinates to players. they all default to center of the map
-function _recalcCircle() {
-  const n = Math.max(1, _registry.getArenaPlayers().length);
-  arena.radius   = Math.max(5, 4 + Math.ceil(n / 2));
-  arena.gridSize = 2 * arena.radius + 1;
-}
-
-function _spawnPosition(index, total) {
-  if (arena.shape === 'circle') {
-    const c     = Math.floor(arena.gridSize / 2);
-    const r     = Math.round(arena.radius * 0.65);
-    const angle = (2 * Math.PI * index / Math.max(total, 1)) - Math.PI / 2;
-    return { x: c + Math.round(r * Math.cos(angle)), y: c + Math.round(r * Math.sin(angle)) };
-  }
-  const offsets = [
-    { dx:  0, dy:  0 }, { dx:  2, dy:  0 }, { dx: -2, dy:  0 },
-    { dx:  0, dy:  2 }, { dx:  0, dy: -2 }, { dx:  2, dy:  2 },
-    { dx: -2, dy: -2 }, { dx:  2, dy: -2 }, { dx: -2, dy:  2 },
-  ];
-  const o = offsets[index % offsets.length];
-  return {
-    x: Math.max(0, Math.min(arena.width  - 1, Math.floor(arena.width  / 2) + o.dx)),
-    y: Math.max(0, Math.min(arena.height - 1, Math.floor(arena.height / 2) + o.dy)),
+  return (x, y) => {
+    const row = arena.grid[y];
+    return row !== undefined && row[x] !== undefined && row[x] !== 0;
   };
 }
 
-function _respawnAll() {
-  const arenaPlayers = _registry.getArenaPlayers();
-  arenaPlayers.forEach((p, i) => {
-    const pos = _spawnPosition(i, arenaPlayers.length);
-    _registry.update(p.socketId, { x: pos.x, y: pos.y });
-  });
+// A cell is a wall if its matrix value is 2.
+function isWall(x, y) {
+  const row = arena.grid[y];
+  return row !== undefined && row[x] === 2;
+}
+
+// A cell is walkable only if its matrix value is 1 (open).
+function canMoveTo(x, y) {
+  const row = arena.grid[y];
+  return row !== undefined && row[x] === 1;
 }
 
 // ── Enemy spawning ─────────────────────────────────────────────────────
 function _spawnEnemiesFromConfig() {
   arena.enemies = arena.enemySpawns.map(spawn => ({
-    id: _enemyIdCounter++,
-    x:  spawn.x,
-    y:  spawn.y,
-    ai: spawn.ai || 'chaser',
+    id:     _enemyIdCounter++,
+    x:      spawn.x,
+    y:      spawn.y,
+    ai:     spawn.ai     || 'chaser',
+    sprite: spawn.sprite || 'default',
   }));
   _syncEnemyInTurnOrder();
 }
 
 function _syncEnemyInTurnOrder() {
-  const shouldHaveSlot = arena.hasEnemy && arena.enemies.length > 0 && !arena.pvp;
+  const shouldHaveSlot = arena.enemies.length > 0 && !arena.pvp;
   const idx = arena.turnOrder.indexOf(ENEMY_TURN_ID);
   if (shouldHaveSlot && idx === -1) {
     arena.turnOrder.push(ENEMY_TURN_ID);
@@ -166,7 +132,7 @@ function _startTimer() {
 
 // ── Turn management ────────────────────────────────────────────────────
 function _isMyTurn(socketId) {
-  if (arena.mode === 'freeze') return false;
+  if (arena.mode === 'setup' || arena.mode === 'pause') return false;
   if (arena.mode !== 'turn' || arena.turnOrder.length === 0) return true;
   return arena.turnOrder[arena.currentTurnIdx % arena.turnOrder.length] === socketId;
 }
@@ -212,11 +178,11 @@ function _enemyDelayThen(cb) {
 // ── Enemy execution ────────────────────────────────────────────────────
 function _runEnemies() {
   const ctx = {
-    players:   _registry.getArenaPlayers(),
-    inBounds:  makeInBounds(),
+    players:    _registry.getArenaPlayers(),
+    inBounds:   makeInBounds(),
     isWall,
-    emit:      (ev, data) => _io.emit(ev, data),
-    addLog:    _addLog,
+    emit:       (ev, data) => _io.emit(ev, data),
+    addLog:     _addLog,
     killPlayer: _killPlayer,
   };
   enemies.runEnemies(arena.enemies, ctx);
@@ -224,7 +190,6 @@ function _runEnemies() {
 
 // ── Clock round ────────────────────────────────────────────────────────
 function _resolveClockRound() {
-  const inBounds = makeInBounds();
   const DIRS = {
     up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
     upleft: [-1, -1], upright: [1, -1], downleft: [-1, 1], downright: [1, 1],
@@ -239,8 +204,8 @@ function _resolveClockRound() {
     if (delta) {
       const [dx, dy] = delta;
       const nx = p.x + dx, ny = p.y + dy;
-      if (inBounds(nx, ny) && !isWall(nx, ny)) _registry.update(sid, { x: nx, y: ny, lastDir: action });
-      else                                      _registry.update(sid, { lastDir: action });
+      if (canMoveTo(nx, ny)) _registry.update(sid, { x: nx, y: ny, lastDir: action });
+      else                   _registry.update(sid, { lastDir: action });
     }
   }
 
@@ -260,7 +225,7 @@ function _resolveClockRound() {
     _startTimer();
   };
 
-  if (arena.hasEnemy && arena.enemies.length > 0 && !arena.pvp) {
+  if (arena.enemies.length > 0 && !arena.pvp) {
     _enemyDelayThen(afterClock);
   } else {
     afterClock();
@@ -287,7 +252,7 @@ function _fireAttack(player) {
   }
 
   // Enemies: remove those caught in blast
-  if (arena.hasEnemy && arena.enemies.length > 0) {
+  if (arena.enemies.length > 0) {
     arena.enemies = enemies.checkKillEnemies(positions, arena.enemies, _addLog, _syncEnemyInTurnOrder);
   }
 }
@@ -326,16 +291,10 @@ function getSnapshot() {
   const currentTurn = curSid === ENEMY_TURN_ID ? 'Enemy' : (curPlayer ? curPlayer.name : null);
 
   return {
-    shape:          arena.shape,
-    width:          arena.width,
-    height:         arena.height,
-    radius:         arena.radius,
-    gridSize:       arena.gridSize,
+    grid:           arena.grid,
     pvp:            arena.pvp,
-    hasEnemy:       arena.hasEnemy,
     enemies:        arena.enemies,
     enemySpawns:    arena.enemySpawns,
-    walls:          arena.walls,
     players:        _registry.getArenaPlayers().map(_registry.toArenaShape),
     mode:           arena.mode,
     timerEnabled:   arena.timerEnabled,
@@ -355,7 +314,11 @@ function handleJoin(socketId, name) {
   if (!p) return;
 
   const noPlayersBefore = _registry.getArenaPlayers().length === 0;
-  _registry.update(socketId, { inArena: true, lastDir: 'up' });
+  const rows    = arena.grid.length;
+  const cols    = arena.grid[0] ? arena.grid[0].length : 0;
+  const centerX = Math.floor(cols / 2);
+  const centerY = Math.floor(rows / 2);
+  _registry.update(socketId, { inArena: true, lastDir: 'up', x: centerX, y: centerY });
 
   if (!arena.turnOrder.includes(socketId)) {
     const enemyIdx = arena.turnOrder.indexOf(ENEMY_TURN_ID);
@@ -363,9 +326,6 @@ function handleJoin(socketId, name) {
     else arena.turnOrder.push(socketId);
   }
   arena.pendingActions[socketId] = 'stay';
-
-  if (arena.shape === 'circle') _recalcCircle();
-  _respawnAll();
 
   const updated = _registry.get(socketId);
   _io.to(socketId).emit('arena:joined', {
@@ -379,12 +339,12 @@ function handleJoin(socketId, name) {
   });
 
   _io.emit('arena:state', getSnapshot());
-  if (noPlayersBefore && arena.mode !== 'free' && arena.mode !== 'freeze') _startTimer();
+  if (noPlayersBefore && arena.mode !== 'free' && arena.mode !== 'pause' && arena.mode !== 'setup') _startTimer();
 }
 
 function handleMove(socketId, dir) {
   const p = _registry.get(socketId);
-  if (!p || !p.inArena || arena.mode === 'freeze') return;
+  if (!p || !p.inArena || arena.mode === 'setup' || arena.mode === 'pause') return;
 
   const DIRS = {
     up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
@@ -419,7 +379,7 @@ function handleMove(socketId, dir) {
 
 function handleAttack(socketId) {
   const p = _registry.get(socketId);
-  if (!p || !p.inArena || arena.mode === 'freeze') return;
+  if (!p || !p.inArena || arena.mode === 'setup' || arena.mode === 'pause') return;
 
   if (arena.mode === 'clock') {
     arena.pendingActions[socketId] = 'stay';
@@ -452,7 +412,6 @@ function handleDisconnect(socketId) {
     }
   }
   _registry.update(socketId, { inArena: false });
-  if (arena.shape === 'circle' && _registry.getArenaPlayers().length > 0) _recalcCircle();
   _io.emit('arena:state', getSnapshot());
 }
 
@@ -472,24 +431,22 @@ function handleReset(currentModule) {
   _addLog('Arena reset', 'action');
 }
 
-function handleConfig({ shape, width, height, pvp, hasEnemy }) {
+function handleConfig({ grid, pvp }) {
   _clearTimer();
-  if (shape && ['rect', 'circle'].includes(shape)) arena.shape = shape;
-  if (width    != null) arena.width  = Math.max(2, Math.min(30, Math.floor(width)));
-  if (height   != null) arena.height = Math.max(2, Math.min(30, Math.floor(height)));
-  if (pvp      !== undefined) arena.pvp      = !!pvp;
-  if (hasEnemy !== undefined) { arena.hasEnemy = !!hasEnemy; _syncEnemyInTurnOrder(); }
-  if (arena.shape === 'circle') _recalcCircle();
+  if (Array.isArray(grid)) arena.grid = grid;
+  if (pvp !== undefined) arena.pvp = !!pvp;
   const inBounds = makeInBounds();
+  const rows = arena.grid.length;
+  const cols = arena.grid[0] ? arena.grid[0].length : 0;
   for (const p of _registry.getArenaPlayers()) {
     if (!inBounds(p.x, p.y))
-      _registry.update(p.socketId, { x: Math.floor(arena.width / 2), y: Math.floor(arena.height / 2) });
+      _registry.update(p.socketId, { x: Math.floor(cols / 2), y: Math.floor(rows / 2) });
   }
   _io.emit('arena:state', getSnapshot());
 }
 
 function handleMode(mode) {
-  if (!['freeze', 'free', 'turn', 'clock'].includes(mode)) return;
+  if (!['setup', 'pause', 'free', 'turn', 'clock'].includes(mode)) return;
   _clearTimer();
   arena.mode           = mode;
   arena.currentTurnIdx = 0;
@@ -524,9 +481,10 @@ function handleTimerSet({ turnSecs, clockSecs }) {
 function handleSetEnemySpawns(spawns) {
   if (!Array.isArray(spawns)) return;
   arena.enemySpawns = spawns.map(s => ({
-    x:  Math.floor(s.x),
-    y:  Math.floor(s.y),
-    ai: s.ai || 'chaser',
+    x:      Math.floor(s.x),
+    y:      Math.floor(s.y),
+    ai:     s.ai     || 'chaser',
+    sprite: s.sprite || 'default',
   }));
   _spawnEnemiesFromConfig();
   _io.emit('arena:state', getSnapshot());
@@ -539,17 +497,12 @@ function handleLoadLevel(levelId) {
   try {
     const cfg = JSON.parse(fs.readFileSync(levelPath, 'utf8'));
     _clearTimer();
-    if (cfg.shape && ['rect', 'circle'].includes(cfg.shape)) arena.shape = cfg.shape;
-    if (cfg.width    != null) arena.width  = Math.max(2, Math.min(30, cfg.width));
-    if (cfg.height   != null) arena.height = Math.max(2, Math.min(30, cfg.height));
-    if (cfg.pvp      !== undefined) arena.pvp      = !!cfg.pvp;
-    if (cfg.hasEnemy !== undefined) arena.hasEnemy = !!cfg.hasEnemy;
+    if (Array.isArray(cfg.grid)) arena.grid = cfg.grid;
+    if (cfg.pvp !== undefined) arena.pvp = !!cfg.pvp;
     if (Array.isArray(cfg.enemySpawns)) {
       arena.enemySpawns = cfg.enemySpawns;
       _spawnEnemiesFromConfig();
     }
-    if (Array.isArray(cfg.walls)) arena.walls = cfg.walls;
-    if (arena.shape === 'circle') _recalcCircle();
     _io.emit('arena:state', getSnapshot());
     _addLog(`Level loaded: ${cfg.name || levelId}`, 'action');
   } catch (_) { /* malformed JSON — silently ignore */ }
@@ -566,8 +519,8 @@ function handleSetClass(socketId, playerClass) {
 // ── Free-mode enemy auto-tick ──────────────────────────────────────────
 function startFreeModeInterval() {
   setInterval(() => {
-    if (arena.mode === 'free' && arena.hasEnemy &&
-        arena.enemies.length > 0 && _registry.getArenaPlayers().length > 0) {
+    if (arena.mode === 'free' && arena.enemies.length > 0 &&
+        _registry.getArenaPlayers().length > 0) {
       _runEnemies();
       _io.emit('arena:state', getSnapshot());
     }
