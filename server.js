@@ -13,6 +13,7 @@ const path       = require('path');
 // Here we just have a QR code cause why not?
 const QRCode     = require('qrcode');
 
+// can we change this so these are only loaded when a module (now called Scene) is loaded and then deleted when the scene changes 
 const registry   = require('./engine/playerRegistry');
 const arenaEng   = require('./engine/arenaEngine');
 
