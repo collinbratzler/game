@@ -13,6 +13,7 @@ const path       = require('path');
 // Here we just have a QR code cause why not?
 const QRCode     = require('qrcode');
 
+// can we change this so these are only loaded when a module (now called Scene) is loaded and then deleted when the scene changes 
 const registry   = require('./engine/playerRegistry');
 const arenaEng   = require('./engine/arenaEngine');
 
@@ -24,21 +25,21 @@ const PORT   = 3000;
 // ── Session state ──────────────────────────────────────────────────────
 // Non-player, non-arena data that lives at the server level.
 const session = {
-  currentModule:  'waiting',
-  currentDisplay: 'waiting-display',
-  chatHistory:    [],
-  activityLog:    [],
+  currentModule:  'waiting', // these can be combined into one variable possibky referring to the name of the folder with a player.html and display.html 
+  currentDisplay: 'waiting-display', // see above
+  chatHistory:    [], // these are fine but not a big priority right now
+  activityLog:    [], // im thinking of maybe removing this functionality for simplicity or having it live in its own module
 };
 
-const DISPLAY_MAP = {
+const DISPLAY_MAP = { // with single variable, we wont need this anymore
   'waiting':          'waiting-display',
   'character-select': 'character-select-display',
   'arena':            'arena-display',
   'chat':             'chat-display',
 };
-function toDisplayModule(id) { return DISPLAY_MAP[id] || id; }
+function toDisplayModule(id) { return DISPLAY_MAP[id] || id; } // dont need this 
 
-function addLog(message, type = 'info') {
+function addLog(message, type = 'info') { // remove (save for future module)
   const entry = { ts: Date.now(), message, type };
   session.activityLog.push(entry);
   if (session.activityLog.length > 200) session.activityLog.shift();
