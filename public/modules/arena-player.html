@@ -371,6 +371,7 @@
     // Ready button
     document.getElementById('ready-btn').addEventListener('click', () => {
       socket.emit('arena:player-ready', {
+        name:         playerName,
         colorIndex:   selColor,
         movementType: selMove,
         attackType:   selAttack,
@@ -402,6 +403,12 @@
     function showGameView() {
       if (gameStarted) return;
       gameStarted = true;
+
+      // Apply locally chosen loadout — don't wait for arena:joined
+      // (that event goes to player.html's socket, not ours)
+      playerDotEl.className = `pc-${selColor}`;
+      applyMovementType(selMove);
+
       document.getElementById('select-view').style.display  = 'none';
       document.getElementById('waiting-view').style.display = 'none';
       document.getElementById('game-view').style.display    = 'flex';
@@ -449,16 +456,20 @@
       modeBadge.style.display = 'inline-block';
     }
 
-    // D-pad wiring
-    document.getElementById('btn-up').addEventListener('click',        () => socket.emit('arena:move', 'up'));
-    document.getElementById('btn-down').addEventListener('click',      () => socket.emit('arena:move', 'down'));
-    document.getElementById('btn-left').addEventListener('click',      () => socket.emit('arena:move', 'left'));
-    document.getElementById('btn-right').addEventListener('click',     () => socket.emit('arena:move', 'right'));
-    document.getElementById('btn-upleft').addEventListener('click',    () => socket.emit('arena:move', 'upleft'));
-    document.getElementById('btn-upright').addEventListener('click',   () => socket.emit('arena:move', 'upright'));
-    document.getElementById('btn-downleft').addEventListener('click',  () => socket.emit('arena:move', 'downleft'));
-    document.getElementById('btn-downright').addEventListener('click', () => socket.emit('arena:move', 'downright'));
-    document.getElementById('btn-stay').addEventListener('click',      () => socket.emit('arena:attack'));
+    // D-pad wiring — always include playerName so the server can resolve
+    // the correct registry entry (iframe socket ≠ player.html socket)
+    const move = (dir) => socket.emit('arena:move',   { name: playerName, dir });
+    const atk  = ()    => socket.emit('arena:attack', { name: playerName });
+
+    document.getElementById('btn-up').addEventListener('click',        () => move('up'));
+    document.getElementById('btn-down').addEventListener('click',      () => move('down'));
+    document.getElementById('btn-left').addEventListener('click',      () => move('left'));
+    document.getElementById('btn-right').addEventListener('click',     () => move('right'));
+    document.getElementById('btn-upleft').addEventListener('click',    () => move('upleft'));
+    document.getElementById('btn-upright').addEventListener('click',   () => move('upright'));
+    document.getElementById('btn-downleft').addEventListener('click',  () => move('downleft'));
+    document.getElementById('btn-downright').addEventListener('click', () => move('downright'));
+    document.getElementById('btn-stay').addEventListener('click',      atk);
 
     socket.on('connect', () => {
       connStatusEl.textContent = 'connected';

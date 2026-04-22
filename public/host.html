@@ -260,7 +260,10 @@
         <label>Enemies</label>
         <input id="arena-enemies" type="number" min="0" max="20" value="3" style="width:52px;padding:5px 6px;background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;color:#eee;font-family:monospace;font-size:0.85rem;text-align:center;" />
       </div>
-      <button id="arena-start-btn" style="padding:10px 24px;background:#1a2e1a;border:1px solid #2e7d32;color:#4caf50;border-radius:6px;cursor:pointer;font-family:monospace;font-size:0.9rem;font-weight:600;letter-spacing:0.06em;">Start Game →</button>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button id="arena-start-btn" style="padding:10px 24px;background:#1a2e1a;border:1px solid #2e7d32;color:#4caf50;border-radius:6px;cursor:pointer;font-family:monospace;font-size:0.9rem;font-weight:600;letter-spacing:0.06em;">Start Game →</button>
+        <button id="arena-reset-btn" style="padding:10px 16px;background:#3a1a1a;border:1px solid #6a2a2a;color:#e96a6a;border-radius:6px;cursor:pointer;font-family:monospace;font-size:0.9rem;">Reset ↺</button>
+      </div>
     </div>
   </div>
 
@@ -327,6 +330,10 @@
       if (!isNaN(w) && !isNaN(h) && !isNaN(e)) {
         socket.emit('host:arena-start', { width: w, height: h, enemyCount: e });
       }
+    });
+
+    document.getElementById('arena-reset-btn').addEventListener('click', () => {
+      socket.emit('host:arena-reset');
     });
 
     socket.on('arena:state', () => { /* display handles this */ });

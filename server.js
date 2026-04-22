@@ -125,6 +125,8 @@ io.on('connection', (socket) => {
     io.emit('player:load-module',  moduleId);
     io.emit('display:load-module', displayId);
     io.emit('host:state-update',   getStateSnapshot());
+    // Entering arena always resets to setup/lobby so everyone re-selects
+    if (moduleId === 'arena') arenaEng.handleSetupMode();
     addLog(`→ ${moduleId}`, 'action');
   });
 
@@ -212,10 +214,14 @@ io.on('connection', (socket) => {
   });
 
   // ── Arena ──────────────────────────────────────────────────────────────
-  socket.on('arena:player-ready', ({ colorIndex, movementType, attackType }) => {
-    const p = registry.get(socket.id);
+  // arena-player.html runs inside an iframe with its own socket — its socket.id
+  // does NOT match the player's registry entry (registered by player.html).
+  // We resolve the correct registry entry by player name instead.
+
+  socket.on('arena:player-ready', ({ name, colorIndex, movementType, attackType }) => {
+    const p = registry.getByName(name);
     if (!p) return;
-    registry.update(socket.id, {
+    registry.update(p.socketId, {
       colorIndex:     colorIndex ?? p.colorIndex,
       boots:          movementType || 'cardinal',
       weapon:         attackType   || 'melee',
@@ -226,10 +232,26 @@ io.on('connection', (socket) => {
     addLog(`${p.name}: ready (${movementType} | ${attackType})`, 'info');
   });
 
-  socket.on('arena:join',          (name) => arenaEng.handleJoin(socket.id, name));
-  socket.on('arena:move',          (dir)  => arenaEng.handleMove(socket.id, dir));
-  socket.on('arena:attack',        ()     => arenaEng.handleAttack(socket.id));
-  socket.on('arena:request-state', ()     => socket.emit('arena:state', arenaEng.getSnapshot()));
+  socket.on('arena:join', (name) => arenaEng.handleJoin(socket.id, name));
+
+  // Move and attack resolve the registry socket ID by name so the iframe socket
+  // routes correctly to the player's arena state.
+  socket.on('arena:move', (data) => {
+    const dir  = typeof data === 'string' ? data  : data?.dir;
+    const name = typeof data === 'object' ? data?.name : null;
+    let sid = socket.id;
+    if (name) { const p = registry.getByName(name); if (p) sid = p.socketId; }
+    if (dir) arenaEng.handleMove(sid, dir);
+  });
+
+  socket.on('arena:attack', (data) => {
+    const name = typeof data === 'object' ? data?.name : null;
+    let sid = socket.id;
+    if (name) { const p = registry.getByName(name); if (p) sid = p.socketId; }
+    arenaEng.handleAttack(sid);
+  });
+
+  socket.on('arena:request-state', () => socket.emit('arena:state', arenaEng.getSnapshot()));
 
   // ── Player ─────────────────────────────────────────────────────────────
   socket.on('player:join', (name) => {
