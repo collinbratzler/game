@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Player</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d0d1a;
+      color: #eee;
+      height: 100vh; height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+      user-select: none;
+      overflow: hidden;
+    }
+    body.in-game { justify-content: flex-start; }
+
+    /* ── Generic view container ── */
+    .view { display: none; width: 100%; max-width: 380px; flex-direction: column; align-items: center; gap: 16px; }
+    .view.active { display: flex; }
+    #game-view.active { flex: 1; height: 100%; justify-content: flex-start; }
+
+    /* ── Join view ── */
+    #join-view h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: 3px; color: #4a9de0; text-transform: uppercase; }
+    #join-view p  { font-size: 0.8rem; color: #444; }
+
+    input[type=text] {
+      width: 100%; padding: 13px 15px; font-size: 1rem;
+      border-radius: 10px; border: 2px solid #222238;
+      background: #13132a; color: #eee;
+      outline: none; transition: border-color 0.15s;
+    }
+    input[type=text]:focus { border-color: #4a9de0; }
+
+    .big-btn {
+      width: 100%; padding: 14px; font-size: 1rem; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      border-radius: 12px; border: none; cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .big-btn:active { opacity: 0.8; }
+    .btn-join { background: #4a9de0; color: #fff; }
+
+    /* ── Lobby view ── */
+    #lobby-view { text-align: center; }
+    #lobby-name { font-size: 1.1rem; color: #4caf50; font-weight: 700; }
+    .sub        { font-size: 0.78rem; color: #444; }
+
+    .move-row { display: flex; gap: 10px; width: 100%; }
+    .move-card {
+      flex: 1; padding: 13px 8px; border-radius: 10px;
+      background: #13132a; border: 2px solid #22223a;
+      cursor: pointer; text-align: center;
+      transition: border-color 0.12s, background 0.12s;
+      touch-action: manipulation;
+    }
+    .move-card.sel { border-color: #4a9de0; background: #0d1c2e; }
+    .move-card .ic { font-size: 1.6rem; display: block; margin-bottom: 5px; }
+    .move-card .lbl{ font-size: 0.85rem; font-weight: 700; }
+    .move-card .dsc{ font-size: 0.68rem; color: #555; margin-top: 2px; }
+    .move-card.sel .dsc { color: #4a7a9b; }
+
+    /* ── Game view ── */
+    #game-header {
+      width: 100%; display: flex; align-items: center;
+      justify-content: space-between; padding-top: 4px; gap: 8px;
+    }
+    #p-dot  { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    #p-name { font-size: 0.9rem; font-weight: 600; }
+
+    .mt-row { display: flex; gap: 4px; }
+    .mt-btn {
+      padding: 4px 9px; font-size: 0.68rem; border-radius: 6px;
+      border: 1px solid #2a2a3a; background: #13132a; color: #666;
+      cursor: pointer; transition: all 0.1s;
+    }
+    .mt-btn.sel { border-color: #4a9de0; color: #4a9de0; background: #0d1c2e; }
+
+    #turn-banner {
+      width: 100%; text-align: center; padding: 9px;
+      border-radius: 9px; font-size: 0.9rem; font-weight: 600;
+    }
+    .banner-mine    { background: #182818; color: #4caf50; }
+    .banner-waiting { background: #151520; color: #555;    }
+
+    /* ── D-pad ── */
+    #dpad-area {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+    }
+    #dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 74px);
+      grid-template-rows:    repeat(3, 74px);
+      gap: 7px;
+    }
+    .d {
+      width: 74px; height: 74px; border-radius: 13px;
+      border: 2px solid #22223a; background: #13132a;
+      font-size: 1.5rem; color: #bbb; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      touch-action: manipulation;
+      transition: background 0.08s, transform 0.08s;
+    }
+    .d:active { background: #1a2a3a; transform: scale(0.92); }
+    .d.ghost  { opacity: 0; pointer-events: none; } /* center cell placeholder */
+    /* Diagonal buttons only visible in 8-dir mode */
+    .d-diag { font-size: 1.1rem; border-style: dashed; color: #555; }
+    body.cardinal .d-diag { opacity: 0.15; pointer-events: none; }
+
+    /* ── Turn order (shown when waiting) ── */
+    #wait-panel {
+      width: 100%; flex: 1;
+      display: flex; flex-direction: column; gap: 6px;
+      overflow-y: auto;
+    }
+    #wait-panel h3 {
+      font-size: 0.68rem; letter-spacing: 2px;
+      text-transform: uppercase; color: #444;
+    }
+    .to-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-radius: 8px;
+      border: 1px solid transparent; font-size: 0.82rem; color: #666;
+    }
+    .to-row.cur  { background: #182818; border-color: #4caf50; color: #4caf50; font-weight: 700; }
+    .to-row.dead { opacity: 0.25; text-decoration: line-through; }
+    .to-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .to-num { width: 20px; font-size: 0.7rem; color: #444; }
+
+    /* ── Eliminated view ── */
+    #elim-view { text-align: center; }
+    #elim-view .skull  { font-size: 4rem; }
+    #elim-view h2      { color: #e96a6a; font-size: 1.3rem; }
+    #elim-order        { width: 100%; margin-top: 12px; }
+  </style>
+</head>
+<body class="cardinal">
+
+<!-- ── Join ── -->
+<div class="view active" id="join-view">
+  <h2>Join</h2>
+  <p>Enter your name to join the game</p>
+  <input type="text" id="name-in" placeholder="Your name…" maxlength="18" autocomplete="off" autocorrect="off">
+  <button class="big-btn btn-join" onclick="doJoin()">Join →</button>
+</div>
+
+<!-- ── Lobby: movement choice + waiting ── -->
+<div class="view" id="lobby-view">
+  <p id="lobby-name">—</p>
+  <p class="sub">Choose your movement type</p>
+  <div class="move-row">
+    <div class="move-card sel" data-m="cardinal" onclick="pickMove(this)">
+      <span class="ic">✦</span>
+      <span class="lbl">Cardinal</span>
+      <span class="dsc">4 directions</span>
+    </div>
+    <div class="move-card" data-m="diagonal" onclick="pickMove(this)">
+      <span class="ic">◈</span>
+      <span class="lbl">Diagonal</span>
+      <span class="dsc">8 directions</span>
+    </div>
+  </div>
+  <p class="sub" style="margin-top:8px;">Waiting for host to start…</p>
+</div>
+
+<!-- ── Game ── -->
+<div class="view" id="game-view">
+  <div id="game-header">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="p-dot"></div>
+      <span id="p-name">—</span>
+    </div>
+    <div class="mt-row">
+      <button class="mt-btn sel" data-m="cardinal" onclick="switchMove(this)">4-dir</button>
+      <button class="mt-btn"     data-m="diagonal" onclick="switchMove(this)">8-dir</button>
+    </div>
+  </div>
+
+  <div id="turn-banner" class="banner-waiting">Waiting…</div>
+
+  <!-- D-pad (shown on your turn) -->
+  <div id="dpad-area">
+    <div id="dpad">
+      <button class="d d-diag" onclick="mv('upleft')">↖</button>
+      <button class="d"        onclick="mv('up')">↑</button>
+      <button class="d d-diag" onclick="mv('upright')">↗</button>
+
+      <button class="d"        onclick="mv('left')">←</button>
+      <button class="d ghost">•</button>
+      <button class="d"        onclick="mv('right')">→</button>
+
+      <button class="d d-diag" onclick="mv('downleft')">↙</button>
+      <button class="d"        onclick="mv('down')">↓</button>
+      <button class="d d-diag" onclick="mv('downright')">↘</button>
+    </div>
+  </div>
+
+  <!-- Turn order list (shown when waiting) -->
+  <div id="wait-panel" style="display:none">
+    <h3>Turn Order</h3>
+    <div id="to-list"></div>
+  </div>
+</div>
+
+<!-- ── Eliminated ── -->
+<div class="view" id="elim-view">
+  <div class="skull">💀</div>
+  <h2>Eliminated</h2>
+  <p class="sub">You were taken out.</p>
+  <div id="elim-order"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  let myId       = null;
+  let myMovement = 'cardinal';
+  let itIsMyTurn = false;
+  let latestState = null;
+
+  // ── View switching ─────────────────────────────────────────────────────────
+  function show(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.body.classList.toggle('in-game', id === 'game-view');
+  }
+
+  // ── Join ───────────────────────────────────────────────────────────────────
+  function doJoin() {
+    const name = document.getElementById('name-in').value.trim();
+    if (!name) return;
+    socket.emit('player:join', { name });
+  }
+  document.getElementById('name-in').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doJoin();
+  });
+
+  // ── Movement selection (lobby) ─────────────────────────────────────────────
+  function pickMove(el) {
+    document.querySelectorAll('.move-card').forEach(c => c.classList.remove('sel'));
+    el.classList.add('sel');
+    applyMovement(el.dataset.m);
+  }
+
+  // ── Movement selection (in-game toggle) ───────────────────────────────────
+  function switchMove(el) {
+    document.querySelectorAll('.mt-btn').forEach(b => b.classList.remove('sel'));
+    el.classList.add('sel');
+    applyMovement(el.dataset.m);
+  }
+
+  function applyMovement(m) {
+    myMovement = m;
+    document.body.classList.toggle('cardinal', m === 'cardinal');
+    socket.emit('player:choose-movement', { movement: m });
+    // Keep lobby cards in sync
+    document.querySelectorAll('.move-card').forEach(c =>
+      c.classList.toggle('sel', c.dataset.m === m)
+    );
+    // Keep in-game toggle in sync
+    document.querySelectorAll('.mt-btn').forEach(b =>
+      b.classList.toggle('sel', b.dataset.m === m)
+    );
+  }
+
+  // ── Player move ────────────────────────────────────────────────────────────
+  function mv(dir) {
+    if (!itIsMyTurn) return;
+    socket.emit('player:move', { dir });
+  }
+
+  // ── Socket events ──────────────────────────────────────────────────────────
+  socket.on('player:registered', ({ id, color }) => {
+    myId = id;
+    const name = document.getElementById('name-in').value.trim();
+    document.getElementById('lobby-name').textContent = name;
+    document.getElementById('p-name').textContent     = name;
+    document.getElementById('p-dot').style.background = color || '#888';
+    show('lobby-view');
+  });
+
+  socket.on('game:started', () => {
+    itIsMyTurn = false;
+    show('game-view');
+    // Start in waiting state
+    document.getElementById('dpad-area').style.display = 'none';
+    document.getElementById('wait-panel').style.display = 'flex';
+    document.getElementById('turn-banner').textContent = 'Waiting…';
+    document.getElementById('turn-banner').className   = 'banner-waiting';
+  });
+
+  socket.on('game:your-turn', () => {
+    itIsMyTurn = true;
+    document.getElementById('turn-banner').textContent = 'Your turn! Pick a direction.';
+    document.getElementById('turn-banner').className   = 'banner-mine';
+    document.getElementById('dpad-area').style.display = 'flex';
+    document.getElementById('wait-panel').style.display = 'none';
+  });
+
+  socket.on('game:state', (s) => {
+    latestState = s;
+
+    // Sync movement type from server entity
+    if (myId != null) {
+      const me = s.entities.find(e => e.id === myId);
+      if (me) {
+        document.getElementById('p-dot').style.background = me.color || '#888';
+        // Don't override movement if we set it locally — server is source of truth after join
+      }
+    }
+
+    // If game started and we're still on lobby/join, switch over (reconnect case)
+    if (s.phase === 'playing' && myId != null) {
+      const active = document.querySelector('.view.active');
+      if (active && active.id !== 'game-view' && active.id !== 'elim-view') {
+        show('game-view');
+        document.getElementById('dpad-area').style.display = 'none';
+        document.getElementById('wait-panel').style.display = 'flex';
+      }
+    }
+
+    // When it's not my turn, switch to waiting panel
+    if (s.phase === 'playing') {
+      const myTurn = s.currentTurn === myId;
+      if (!myTurn && itIsMyTurn) {
+        itIsMyTurn = false;
+        document.getElementById('dpad-area').style.display  = 'none';
+        document.getElementById('wait-panel').style.display = 'flex';
+      }
+      if (!myTurn) {
+        const cur = s.entities.find(e => e.id === s.currentTurn);
+        const label = cur
+          ? (cur.type === 'enemy' ? `${cur.name}'s turn… (watching AI)` : `${cur.name}'s turn…`)
+          : 'Waiting…';
+        document.getElementById('turn-banner').textContent = label;
+        document.getElementById('turn-banner').className   = 'banner-waiting';
+      }
+    }
+
+    renderTurnOrder(s);
+  });
+
+  function renderTurnOrder(s) {
+    const list = document.getElementById('to-list');
+    list.innerHTML = '';
+    s.turnOrder.forEach((id, i) => {
+      const e = s.entities.find(e => e.id === id);
+      if (!e) return;
+      const row = document.createElement('div');
+      row.className = 'to-row'
+        + (id === s.currentTurn ? ' cur' : '')
+        + (!e.alive ? ' dead' : '');
+      const dot = document.createElement('div');
+      dot.className = 'to-dot';
+      dot.style.background = e.color || '#7a1010';
+      if (e.type === 'enemy') dot.style.borderRadius = '3px';
+      row.innerHTML = `<span class="to-num">${i + 1}.</span>`;
+      row.appendChild(dot);
+      row.insertAdjacentHTML('beforeend',
+        `<span>${e.name}${id === myId ? ' <em style="color:#4a9de0;font-style:normal">(you)</em>' : ''}</span>`
+      );
+      list.appendChild(row);
+    });
+  }
+
+  socket.on('player:eliminated', () => {
+    itIsMyTurn = false;
+    show('elim-view');
+    if (latestState) {
+      const el = document.getElementById('elim-order');
+      el.innerHTML = '<p style="font-size:0.68rem;letter-spacing:2px;text-transform:uppercase;color:#444;margin-bottom:8px">Turn Order</p>';
+      latestState.turnOrder.forEach((id, i) => {
+        const e = latestState.entities.find(e => e.id === id);
+        if (!e) return;
+        el.insertAdjacentHTML('beforeend', `
+          <div style="display:flex;align-items:center;gap:8px;padding:5px;font-size:0.78rem;color:${id===latestState.currentTurn?'#f59e42':'#555'}">
+            <span style="width:18px">${i + 1}.</span>
+            <div style="width:8px;height:8px;border-radius:50%;background:${e.color||'#7a1010'}"></div>
+            <span>${e.name}</span>
+          </div>
+        `);
+      });
+    }
+  });
+</script>
+</body>
+</html>
