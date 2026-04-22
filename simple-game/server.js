@@ -5,6 +5,7 @@ const http    = require('http');
 const { Server } = require('socket.io');
 const QRCode  = require('qrcode');
 const path    = require('path');
+const os      = require('os'); // used to get local IP for QR code URL
 
 const app    = express();
 const server = http.createServer(app);
@@ -279,8 +280,22 @@ io.on('connection', (socket) => {
 });
 
 // ── QR code for player join URL ────────────────────────────────────────────
+function getLocalIP() {
+  const candidates = [];
+  for (const nets of Object.values(os.networkInterfaces())) {
+    for (const net of nets) {
+      if (net.family !== 'IPv4' || net.internal) continue;
+      candidates.push(net.address);
+    }
+  }
+  return candidates.find(ip => /^192\.168\./.test(ip))
+      || candidates.find(ip => /^10\./.test(ip))
+      || candidates.find(ip => /^172\.(1[6-9]|2\d|3[01])\./.test(ip))
+      || candidates[0] || 'localhost';
+}
+
 app.get('/api/qr.svg', async (req, res) => {
-  const host = req.headers.host || `localhost:${PORT}`;
+  const host = req.headers.host || `${getLocalIP()}:${PORT}`;
   const url  = `http://${host}/player.html`;
   try {
     const svg = await QRCode.toString(url, { type: 'svg' });
@@ -292,7 +307,7 @@ app.get('/api/qr.svg', async (req, res) => {
 app.get('/', (_, res) => res.redirect('/host.html'));
 
 server.listen(PORT, () => {
-  console.log(`\n  Simple game  →  http://localhost:${PORT}`);
-  console.log(`  Host         →  http://localhost:${PORT}/host.html`);
-  console.log(`  Display      →  http://localhost:${PORT}/display.html\n`);
+  console.log(`\n  Host         →  http://${getLocalIP()}:${PORT}/host.html`);
+  console.log(`  Display      →  http://${getLocalIP()}:${PORT}/display.html`);
+  console.log(`  Player       →  http://${getLocalIP()}:${PORT}/player.html\n`);
 });
