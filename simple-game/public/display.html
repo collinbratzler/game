@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Game Display</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111318;
+      color: #eee;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Main grid area ── */
+    #arena {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      gap: 12px;
+      position: relative;
+    }
+
+    #phase-badge {
+      font-size: 0.72rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #555;
+    }
+
+    #grid {
+      display: grid;
+      gap: 3px;
+    }
+
+    .cell {
+      width: var(--cs);
+      height: var(--cs);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cell-open { background: #1c1f2e; }
+    .cell-wall { background: #383838; }
+
+    .piece {
+      width: 78%;
+      height: 78%;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: calc(var(--cs) * 0.38);
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .piece-enemy {
+      border-radius: 6px;
+      background: #7a1010 !important;
+    }
+    .piece-dead { opacity: 0.25; }
+    .piece-active {
+      box-shadow: 0 0 0 3px #fff, 0 0 18px 5px rgba(255,255,255,0.35);
+      transform: scale(1.15);
+    }
+
+    /* Setup overlay — QR code for joining */
+    #setup-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(17,19,24,0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    #setup-overlay h2 { font-size: 1.1rem; letter-spacing: 4px; text-transform: uppercase; color: #4a9de0; }
+    #qr-wrap {
+      background: #fff;
+      padding: 14px;
+      border-radius: 12px;
+    }
+    #qr-wrap img { display: block; width: 180px; height: 180px; }
+    #setup-overlay .hint { font-size: 0.8rem; color: #555; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 210px;
+      background: #14151e;
+      border-left: 1px solid #22243a;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 12px;
+      gap: 8px;
+      overflow-y: auto;
+    }
+
+    #sidebar h3 {
+      font-size: 0.68rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 4px;
+    }
+
+    .turn-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-size: 0.82rem;
+      color: #777;
+      transition: all 0.25s;
+    }
+    .turn-item.active {
+      background: #1a2a1a;
+      border-color: #4caf50;
+      color: #4caf50;
+      font-weight: 700;
+    }
+    .turn-item.dead {
+      opacity: 0.25;
+      text-decoration: line-through;
+    }
+    .turn-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .turn-num { width: 20px; font-size: 0.7rem; color: #444; }
+  </style>
+</head>
+<body>
+
+<div id="arena">
+  <div id="phase-badge">Setup Phase</div>
+  <div id="grid"></div>
+
+  <div id="setup-overlay">
+    <h2>Scan to Join</h2>
+    <div id="qr-wrap">
+      <img id="qr-img" src="/api/qr.svg" alt="QR Code">
+    </div>
+    <p class="hint">or visit the player URL</p>
+  </div>
+</div>
+
+<div id="sidebar">
+  <h3>Turn Order</h3>
+  <div id="turn-list"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  let lastState = null;
+
+  function renderGrid(s) {
+    const grid = s.grid;
+    const rows = grid.length, cols = (grid[0] || []).length;
+    const arena = document.getElementById('arena');
+    const aw = arena.clientWidth  - 40;
+    const ah = arena.clientHeight - 80;
+    const cs = Math.max(8, Math.floor(Math.min(aw / cols, ah / rows)));
+
+    const el = document.getElementById('grid');
+    document.documentElement.style.setProperty('--cs', cs + 'px');
+    el.style.gridTemplateColumns = `repeat(${cols}, ${cs}px)`;
+    el.style.gridTemplateRows    = `repeat(${rows}, ${cs}px)`;
+
+    // Build entity position lookup
+    const entMap = {};
+    for (const e of s.entities) {
+      if (e.alive) entMap[`${e.x},${e.y}`] = e;
+    }
+
+    el.innerHTML = '';
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell ' + (grid[y][x] === 2 ? 'cell-wall' : 'cell-open');
+
+        const ent = entMap[`${x},${y}`];
+        if (ent) {
+          const piece = document.createElement('div');
+          const isActive = ent.id === s.currentTurn;
+          piece.className = 'piece'
+            + (ent.type === 'enemy' ? ' piece-enemy' : '')
+            + (isActive ? ' piece-active' : '');
+          piece.style.background = ent.color || '#7a1010';
+          piece.textContent = ent.type === 'enemy'
+            ? '⚔'
+            : ent.name.charAt(0).toUpperCase();
+          cell.appendChild(piece);
+        }
+        el.appendChild(cell);
+      }
+    }
+  }
+
+  function renderSidebar(s) {
+    document.getElementById('phase-badge').textContent =
+      s.phase === 'playing' ? 'Playing' : 'Setup Phase';
+
+    const overlay = document.getElementById('setup-overlay');
+    overlay.style.display = s.phase === 'playing' ? 'none' : 'flex';
+
+    const list = document.getElementById('turn-list');
+    list.innerHTML = '';
+    s.turnOrder.forEach((id, i) => {
+      const e = s.entities.find(e => e.id === id);
+      if (!e) return;
+      const item = document.createElement('div');
+      item.className = 'turn-item'
+        + (id === s.currentTurn ? ' active' : '')
+        + (!e.alive ? ' dead' : '');
+
+      const dot = document.createElement('div');
+      dot.className = 'turn-dot';
+      dot.style.background = e.color || '#7a1010';
+      if (e.type === 'enemy') dot.style.borderRadius = '3px';
+
+      item.innerHTML = `<span class="turn-num">${i + 1}.</span>`;
+      item.appendChild(dot);
+      item.insertAdjacentHTML('beforeend', `<span>${e.name}</span>`);
+      list.appendChild(item);
+    });
+  }
+
+  socket.on('game:state', (s) => {
+    lastState = s;
+    renderGrid(s);
+    renderSidebar(s);
+  });
+
+  window.addEventListener('resize', () => { if (lastState) renderGrid(lastState); });
+</script>
+</body>
+</html>

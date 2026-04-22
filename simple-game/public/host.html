@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Host</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1018;
+      color: #dde;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    h1 { font-size: 1rem; letter-spacing: 3px; text-transform: uppercase; color: #4a9de0; }
+
+    /* ── Top bar ── */
+    #top-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .ctrl-sep { width: 1px; height: 24px; background: #222; margin: 0 4px; }
+    label { font-size: 0.72rem; color: #555; }
+    input[type=number] {
+      width: 52px; padding: 4px 6px; border-radius: 6px;
+      background: #161620; border: 1px solid #2a2a40; color: #dde;
+      font-size: 0.85rem;
+    }
+    button {
+      padding: 6px 13px; border-radius: 7px; border: none;
+      cursor: pointer; font-size: 0.78rem; font-weight: 600;
+      transition: opacity 0.1s;
+    }
+    button:active { opacity: 0.75; }
+    button:disabled { opacity: 0.35; cursor: default; }
+    .btn-neutral  { background: #1e2030; border: 1px solid #2a2a40; color: #aaa; }
+    .btn-neutral:hover:not(:disabled) { background: #242438; }
+    .btn-green    { background: #2e7d32; color: #fff; }
+    .btn-green:hover:not(:disabled)  { background: #388e3c; }
+    .btn-red      { background: #c62828; color: #fff; }
+    .btn-red:hover:not(:disabled)    { background: #e53935; }
+    .btn-blue     { background: #1565c0; color: #fff; font-size: 0.85rem; padding: 7px 20px; }
+    .btn-blue:hover:not(:disabled)   { background: #1976d2; }
+    #status { font-size: 0.75rem; color: #555; margin-left: auto; }
+
+    /* ── Main layout ── */
+    #main { flex: 1; display: flex; gap: 12px; min-height: 0; }
+
+    /* ── Grid ── */
+    #grid-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #grid { display: grid; gap: 3px; cursor: crosshair; }
+    .cell {
+      width: var(--cs); height: var(--cs);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      transition: filter 0.08s;
+      position: relative;
+    }
+    .cell:hover { filter: brightness(1.4); }
+    .cell-open { background: #1c1f2e; }
+    .cell-wall { background: #3c3c3c; }
+    .cell-selected { outline: 2px solid #4caf50; outline-offset: -1px; }
+
+    .piece {
+      width: 80%; height: 80%;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: calc(var(--cs) * 0.38);
+      font-weight: 800; color: #fff;
+      pointer-events: none;
+      cursor: pointer;
+    }
+    .piece-enemy { border-radius: 5px; background: #7a1010 !important; }
+    .piece-picked { box-shadow: 0 0 0 3px #4caf50, 0 0 10px rgba(76,175,80,0.4); }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 195px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    #sidebar h3 {
+      font-size: 0.68rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #444;
+    }
+    .sep { height: 1px; background: #1e1e2a; }
+
+    .ent-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 8px; border-radius: 7px;
+      background: #161620; border: 1px solid #222;
+      font-size: 0.78rem; cursor: pointer;
+      transition: border-color 0.1s;
+    }
+    .ent-item:hover { border-color: #4a9de0; }
+    .ent-item.picked { border-color: #4caf50; background: #0c1a0c; }
+    .ent-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .ent-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ent-del {
+      background: none; border: none; color: #444; cursor: pointer;
+      padding: 0 2px; font-size: 0.9rem; line-height: 1;
+    }
+    .ent-del:hover { color: #e57373; }
+
+    .ord-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 8px; border-radius: 7px;
+      background: #161620; border: 1px solid #222;
+      font-size: 0.78rem;
+      cursor: grab; user-select: none;
+    }
+    .ord-item.drag-over { border-color: #4a9de0; }
+    .ord-num { width: 16px; font-size: 0.68rem; color: #444; }
+    .drag-hint { font-size: 0.68rem; color: #333; margin-top: -4px; }
+
+    .hint-text { font-size: 0.72rem; color: #444; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<div style="display:flex;align-items:center;gap:12px;">
+  <h1>Game Host</h1>
+  <span id="status">Setup phase</span>
+</div>
+
+<div id="top-bar">
+  <label>W</label>
+  <input type="number" id="in-w" value="10" min="2" max="30">
+  <label>H</label>
+  <input type="number" id="in-h" value="8"  min="2" max="30">
+  <button class="btn-neutral" onclick="applyGrid()">Apply Grid</button>
+
+  <div class="ctrl-sep"></div>
+
+  <button class="btn-neutral" onclick="addEnemy()">+ Enemy</button>
+  <button class="btn-red" id="remove-btn" style="display:none" onclick="removeSelected()">Remove</button>
+
+  <div class="ctrl-sep"></div>
+
+  <button class="btn-blue"    id="start-btn" onclick="startGame()">Start</button>
+  <button class="btn-neutral" onclick="resetGame()">Reset</button>
+</div>
+
+<div id="main">
+  <div id="grid-wrap"><div id="grid"></div></div>
+
+  <div id="sidebar">
+    <h3>Entities</h3>
+    <div id="ent-list"></div>
+
+    <div class="sep"></div>
+    <h3>Turn Order</h3>
+    <p class="drag-hint">drag to reorder</p>
+    <div id="ord-list"></div>
+
+    <div class="sep"></div>
+    <p class="hint-text">
+      Click an entity to select it, then click a cell to move it.<br>
+      Click an empty cell to toggle a wall.
+    </p>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  let st = null;
+  let pickedId = null;
+
+  socket.on('game:state', (s) => {
+    st = s;
+    renderAll(s);
+    const playing = s.phase === 'playing';
+    document.getElementById('status').textContent = playing ? '▶ Playing' : '⚙ Setup';
+    const sb = document.getElementById('start-btn');
+    sb.disabled = playing;
+    sb.textContent = playing ? 'Playing…' : 'Start';
+  });
+
+  // ── Grid rendering ────────────────────────────────────────────────────────
+  function renderAll(s) {
+    renderGrid(s);
+    renderSidebar(s);
+  }
+
+  function renderGrid(s) {
+    const grid = s.grid;
+    const rows = grid.length, cols = (grid[0] || []).length;
+    const wrap = document.getElementById('grid-wrap');
+    const aw = wrap.clientWidth - 8, ah = wrap.clientHeight - 8;
+    const cs = Math.max(6, Math.floor(Math.min(aw / cols, ah / rows)));
+
+    const el = document.getElementById('grid');
+    document.documentElement.style.setProperty('--cs', cs + 'px');
+    el.style.gridTemplateColumns = `repeat(${cols}, ${cs}px)`;
+    el.style.gridTemplateRows    = `repeat(${rows}, ${cs}px)`;
+
+    const entMap = {};
+    for (const e of s.entities) if (e.alive) entMap[`${e.x},${e.y}`] = e;
+
+    el.innerHTML = '';
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const isWall = grid[y][x] === 2;
+        const cell   = document.createElement('div');
+        const ent    = entMap[`${x},${y}`];
+        cell.className = 'cell ' + (isWall ? 'cell-wall' : 'cell-open')
+          + (ent && ent.id === pickedId ? ' cell-selected' : '');
+
+        if (ent) {
+          const p = document.createElement('div');
+          p.className = 'piece'
+            + (ent.type === 'enemy' ? ' piece-enemy' : '')
+            + (ent.id === pickedId  ? ' piece-picked' : '');
+          p.style.background = ent.color || '#7a1010';
+          p.textContent = ent.type === 'enemy' ? '⚔' : ent.name.charAt(0).toUpperCase();
+          cell.appendChild(p);
+        }
+
+        cell.addEventListener('click', () => onCell(x, y, ent));
+        el.appendChild(cell);
+      }
+    }
+  }
+
+  function onCell(x, y, ent) {
+    if (st?.phase === 'playing') return;
+
+    if (ent && ent.id !== pickedId) {
+      // Select this entity
+      pickedId = ent.id;
+    } else if (pickedId != null && !ent) {
+      // Move picked entity to this cell
+      socket.emit('host:place', { id: pickedId, x, y });
+      pickedId = null;
+    } else if (!ent) {
+      // Toggle wall
+      socket.emit('host:toggle-wall', { x, y });
+    } else {
+      // Click same entity again — deselect
+      pickedId = null;
+    }
+
+    document.getElementById('remove-btn').style.display = pickedId != null ? '' : 'none';
+    if (st) renderAll(st);
+  }
+
+  // ── Sidebar rendering ─────────────────────────────────────────────────────
+  function renderSidebar(s) {
+    // Entity list
+    const el = document.getElementById('ent-list');
+    el.innerHTML = '';
+    for (const e of s.entities) {
+      const item = document.createElement('div');
+      item.className = 'ent-item' + (e.id === pickedId ? ' picked' : '');
+      item.innerHTML = `
+        <div class="ent-dot" style="background:${e.color||'#7a1010'};${e.type==='enemy'?'border-radius:3px':''}"></div>
+        <span class="ent-name">${e.name}</span>
+        <button class="ent-del" data-id="${e.id}">✕</button>
+      `;
+      item.addEventListener('click', (ev) => {
+        if (ev.target.classList.contains('ent-del')) return;
+        pickedId = pickedId === e.id ? null : e.id;
+        document.getElementById('remove-btn').style.display = pickedId != null ? '' : 'none';
+        renderAll(s);
+      });
+      item.querySelector('.ent-del').addEventListener('click', () => {
+        socket.emit('host:remove', { id: e.id });
+        if (pickedId === e.id) pickedId = null;
+        document.getElementById('remove-btn').style.display = 'none';
+      });
+      el.appendChild(item);
+    }
+
+    // Turn order list (drag-to-reorder)
+    const ol = document.getElementById('ord-list');
+    ol.innerHTML = '';
+    s.turnOrder.forEach((id, i) => {
+      const e = s.entities.find(e => e.id === id);
+      if (!e) return;
+      const item = document.createElement('div');
+      item.className = 'ord-item';
+      item.draggable = true;
+      item.dataset.id = id;
+      item.innerHTML = `
+        <span class="ord-num">${i + 1}</span>
+        <div class="ent-dot" style="background:${e.color||'#7a1010'};${e.type==='enemy'?'border-radius:3px':''}"></div>
+        <span>${e.name}</span>
+      `;
+      item.addEventListener('dragstart', e => { dragSrc = +e.currentTarget.dataset.id; e.currentTarget.style.opacity = '0.45'; });
+      item.addEventListener('dragover',  e => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); });
+      item.addEventListener('dragleave', e => e.currentTarget.classList.remove('drag-over'));
+      item.addEventListener('dragend',   e => { e.currentTarget.style.opacity = ''; clearDragOver(); });
+      item.addEventListener('drop',      onDrop);
+      ol.appendChild(item);
+    });
+  }
+
+  let dragSrc = null;
+  function clearDragOver() { document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); }
+
+  function onDrop(e) {
+    e.preventDefault();
+    clearDragOver();
+    const targetId = +e.currentTarget.dataset.id;
+    if (!st || dragSrc === targetId) return;
+    const order = [...st.turnOrder];
+    const from  = order.indexOf(dragSrc);
+    const to    = order.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    order.splice(from, 1);
+    order.splice(to, 0, dragSrc);
+    socket.emit('host:set-turn-order', { order });
+  }
+
+  // ── Controls ──────────────────────────────────────────────────────────────
+  function applyGrid() {
+    socket.emit('host:set-grid', {
+      width:  +document.getElementById('in-w').value,
+      height: +document.getElementById('in-h').value,
+    });
+  }
+  function addEnemy()       { socket.emit('host:add-enemy'); }
+  function removeSelected() { if (pickedId != null) { socket.emit('host:remove', { id: pickedId }); pickedId = null; document.getElementById('remove-btn').style.display = 'none'; } }
+  function startGame()      { socket.emit('host:start'); }
+  function resetGame()      { socket.emit('host:reset'); }
+
+  window.addEventListener('resize', () => { if (st) renderGrid(st); });
+</script>
+</body>
+</html>
