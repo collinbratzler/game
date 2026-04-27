@@ -96,6 +96,7 @@ function doTurn() {
   } else {
     // Enemy acts after a visible 1.5 s delay so players can watch
     if (enemyTimer) clearTimeout(enemyTimer);
+    io.emit('game:enemy-thinking', { id: cur.id });
     enemyTimer = setTimeout(() => {
       runEnemy(cur);
       broadcast();
@@ -124,6 +125,8 @@ function runEnemy(enemy) {
   if (dx !== 0) candidates.push([dx, 0]);
   if (dy !== 0) candidates.push([0, dy]);
 
+  const oldX = enemy.x, oldY = enemy.y;
+
   for (const [mx, my] of candidates) {
     const nx = enemy.x + mx, ny = enemy.y + my;
     if (!cellOpen(nx, ny)) continue;
@@ -135,6 +138,15 @@ function runEnemy(enemy) {
       enemy.x = nx; enemy.y = ny;
     }
     break;
+  }
+
+  if (enemy.x !== oldX || enemy.y !== oldY) {
+    io.emit('game:entity-moved', {
+      id: enemy.id,
+      fromX: oldX, fromY: oldY,
+      toX: enemy.x, toY: enemy.y,
+      dx: enemy.x - oldX, dy: enemy.y - oldY,
+    });
   }
 }
 
@@ -158,10 +170,18 @@ function applyMove(socketId, dir) {
   const nx = player.x + d[0], ny = player.y + d[1];
   if (!cellOpen(nx, ny)) return; // blocked — don't spend the turn
 
+  const oldX = player.x, oldY = player.y;
   const blocker = entityAt(nx, ny);
   if (blocker) destroy(blocker.id); // bump kill
   player.x = nx;
   player.y = ny;
+
+  io.emit('game:entity-moved', {
+    id: player.id,
+    fromX: oldX, fromY: oldY,
+    toX: nx, toY: ny,
+    dx: d[0], dy: d[1],
+  });
 
   advanceTurn();
 }
