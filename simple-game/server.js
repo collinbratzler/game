@@ -105,38 +105,110 @@ function doTurn() {
   }
 }
 
-// ── Enemy AI: chaser — moves one step toward nearest player ───────────────
+// ── A* Pathfinding ───────────────────────────────────────────────────────
+function findPath(startX, startY, goalX, goalY) {
+  const rows = G.grid.length;
+  const cols = G.grid[0]?.length || 10;
+  const openSet = [];
+  const closedSet = new Set();
+  const cameFrom = new Map();
+  const gScore = new Map();
+  const fScore = new Map();
+
+  const key = (x, y) => `${x},${y}`;
+  const heuristic = (x, y) => Math.abs(x - goalX) + Math.abs(y - goalY);
+
+  const startKey = key(startX, startY);
+  gScore.set(startKey, 0);
+  fScore.set(startKey, heuristic(startX, startY));
+  openSet.push({ x: startX, y: startY, f: fScore.get(startKey) });
+
+  while (openSet.length > 0) {
+    // Get node with lowest fScore
+    openSet.sort((a, b) => a.f - b.f);
+    const current = openSet.shift();
+    const currentKey = key(current.x, current.y);
+
+    if (current.x === goalX && current.y === goalY) {
+      // Reconstruct path
+      const path = [];
+      let node = currentKey;
+      while (node) {
+        const [x, y] = node.split(',').map(Number);
+        path.unshift({ x, y });
+        node = cameFrom.get(node);
+      }
+      return path;
+    }
+
+    closedSet.add(currentKey);
+
+    // Neighbors: 8-directional
+    const neighbors = [
+      [-1, -1], [0, -1], [1, -1],
+      [-1, 0],          [1, 0],
+      [-1, 1],  [0, 1], [1, 1]
+    ];
+
+    for (const [dx, dy] of neighbors) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const neighborKey = key(nx, ny);
+
+      if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+      if (!cellOpen(nx, ny)) continue;
+      if (closedSet.has(neighborKey)) continue;
+
+      const tentativeG = gScore.get(currentKey) + 1;
+      const existingG = gScore.get(neighborKey);
+
+      if (existingG === undefined || tentativeG < existingG) {
+        cameFrom.set(neighborKey, currentKey);
+        gScore.set(neighborKey, tentativeG);
+        fScore.set(neighborKey, tentativeG + heuristic(nx, ny));
+
+        if (!openSet.some(n => n.x === nx && n.y === ny)) {
+          openSet.push({ x: nx, y: ny, f: fScore.get(neighborKey) });
+        }
+      }
+    }
+  }
+
+  return null; // No path found
+}
+
+// ── Enemy AI: chaser — uses A* pathfinding ────────────────────────────────
 function runEnemy(enemy) {
   const players = G.entities.filter(e => e.type === 'player' && e.alive);
   if (!players.length) return;
 
+  // Find nearest player
   let target = players[0], best = Infinity;
   for (const p of players) {
     const d = Math.abs(p.x - enemy.x) + Math.abs(p.y - enemy.y);
     if (d < best) { best = d; target = p; }
   }
 
-  const dx = Math.sign(target.x - enemy.x);
-  const dy = Math.sign(target.y - enemy.y);
+  // Find path to target
+  const path = findPath(enemy.x, enemy.y, target.x, target.y);
+  if (!path || path.length < 2) return; // No valid path or already at target
 
-  // Try diagonal first, then cardinal fallbacks
-  const candidates = [];
-  if (dx !== 0 && dy !== 0) candidates.push([dx, dy]);
-  if (dx !== 0) candidates.push([dx, 0]);
-  if (dy !== 0) candidates.push([0, dy]);
+  // Get next step (index 1 because index 0 is current position)
+  const next = path[1];
+  const dx = next.x - enemy.x;
+  const dy = next.y - enemy.y;
 
-  for (const [mx, my] of candidates) {
-    const nx = enemy.x + mx, ny = enemy.y + my;
-    if (!cellOpen(nx, ny)) continue;
-    const blocker = entityAt(nx, ny);
-    if (blocker) {
-      if (blocker.type === 'player') { destroy(blocker.id); enemy.x = nx; enemy.y = ny; }
-      // don't move into another enemy
-    } else {
-      enemy.x = nx; enemy.y = ny;
-    }
-    break;
+  const nx = enemy.x + dx;
+  const ny = enemy.y + dy;
+
+  // Check for player at destination (bump kill)
+  const blocker = entityAt(nx, ny);
+  if (blocker && blocker.type === 'player') {
+    destroy(blocker.id);
   }
+
+  enemy.x = nx;
+  enemy.y = ny;
 }
 
 // ── Player move handler ────────────────────────────────────────────────────
