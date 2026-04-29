@@ -14,83 +14,49 @@
       overflow: hidden;
     }
 
-    /* ── Main grid area ── */
+    /* ── Arena (canvas) ── */
     #arena {
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      gap: 12px;
       position: relative;
+      overflow: hidden;
     }
-
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
     #phase-badge {
-      font-size: 0.72rem;
+      position: absolute;
+      top: 14px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
       letter-spacing: 3px;
       text-transform: uppercase;
-      color: #555;
+      color: #444;
+      pointer-events: none;
     }
 
-    #grid {
-      display: grid;
-      gap: 3px;
-    }
-
-    .cell {
-      width: var(--cs);
-      height: var(--cs);
-      border-radius: 5px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .cell-open { background: #1c1f2e; }
-    .cell-wall { background: #383838; }
-
-    .piece {
-      width: 78%;
-      height: 78%;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: calc(var(--cs) * 0.38);
-      font-weight: 800;
-      color: #fff;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
-    }
-    .piece-enemy {
-      border-radius: 6px;
-      background: #7a1010 !important;
-    }
-    .piece-dead { opacity: 0.25; }
-    .piece-active {
-      box-shadow: 0 0 0 3px #fff, 0 0 18px 5px rgba(255,255,255,0.35);
-      transform: scale(1.15);
-    }
-
-    /* Setup overlay — QR code for joining */
+    /* ── Setup overlay ── */
     #setup-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(17,19,24,0.88);
+      background: rgba(17, 19, 24, 0.88);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 16px;
     }
-    #setup-overlay h2 { font-size: 1.1rem; letter-spacing: 4px; text-transform: uppercase; color: #4a9de0; }
-    #qr-wrap {
-      background: #fff;
-      padding: 14px;
-      border-radius: 12px;
+    #setup-overlay h2 {
+      font-size: 1.1rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #4a9de0;
     }
+    #qr-wrap { background: #fff; padding: 14px; border-radius: 12px; }
     #qr-wrap img { display: block; width: 180px; height: 180px; }
-    #setup-overlay .hint { font-size: 0.8rem; color: #555; }
+    #setup-overlay .hint { font-size: 0.78rem; color: #555; }
 
     /* ── Sidebar ── */
     #sidebar {
@@ -103,53 +69,38 @@
       gap: 8px;
       overflow-y: auto;
     }
-
     #sidebar h3 {
       font-size: 0.68rem;
       letter-spacing: 3px;
       text-transform: uppercase;
       color: #444;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
-
     .turn-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 8px;
-      border-radius: 8px;
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 8px; border-radius: 8px;
       border: 1px solid transparent;
-      font-size: 0.82rem;
-      color: #777;
-      transition: all 0.25s;
+      font-size: 0.82rem; color: #666;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
     }
     .turn-item.active {
-      background: #1a2a1a;
-      border-color: #4caf50;
-      color: #4caf50;
-      font-weight: 700;
+      background: #1a2a1a; border-color: #4caf50;
+      color: #4caf50; font-weight: 700;
     }
-    .turn-item.dead {
-      opacity: 0.25;
-      text-decoration: line-through;
-    }
-    .turn-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+    .turn-item.dead { opacity: 0.25; text-decoration: line-through; }
+    .turn-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .turn-num { width: 20px; font-size: 0.7rem; color: #444; }
   </style>
 </head>
 <body>
 
 <div id="arena">
+  <canvas id="c"></canvas>
   <div id="phase-badge">Setup Phase</div>
-  <div id="grid"></div>
-
   <div id="setup-overlay">
     <h2>Scan to Join</h2>
+    <div id="qr-wrap"><img src="/api/qr.svg" alt="QR Code"></div>
+    <p class="hint">or visit the player URL</p>
     <div id="qr-wrap">
       <img id="qr-img" src="/api/qr.svg" alt="QR Code">
     </div>
@@ -163,88 +114,338 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-  const socket = io();
-  let lastState = null;
+// ── Constants ──────────────────────────────────────────────────────────────
+const GAP = 3; // px gap between cells
 
-  function renderGrid(s) {
-    const grid = s.grid;
-    const rows = grid.length, cols = (grid[0] || []).length;
-    const arena = document.getElementById('arena');
-    const aw = arena.clientWidth  - 40;
-    const ah = arena.clientHeight - 80;
-    const cs = Math.max(8, Math.floor(Math.min(aw / cols, ah / rows)));
+// ── Canvas setup ───────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
 
-    const el = document.getElementById('grid');
-    document.documentElement.style.setProperty('--cs', cs + 'px');
-    el.style.gridTemplateColumns = `repeat(${cols}, ${cs}px)`;
-    el.style.gridTemplateRows    = `repeat(${rows}, ${cs}px)`;
+let cs   = 40;  // cell size in CSS px
+let offX = 0;   // grid top-left X
+let offY = 0;   // grid top-left Y
+let lastGrid = null;
 
-    // Build entity position lookup
-    const entMap = {};
-    for (const e of s.entities) {
-      if (e.alive) entMap[`${e.x},${e.y}`] = e;
+function computeLayout(grid) {
+  const rows = grid.length, cols = (grid[0] || []).length;
+  if (!rows || !cols) return;
+  cs = Math.max(8, Math.floor(Math.min(
+    (canvas.offsetWidth  - 40) / cols,
+    (canvas.offsetHeight - 60) / rows
+  )));
+  const gw = cols * cs + (cols - 1) * GAP;
+  const gh = rows * cs + (rows - 1) * GAP;
+  offX = Math.floor((canvas.offsetWidth  - gw) / 2);
+  offY = Math.floor((canvas.offsetHeight - gh) / 2);
+}
+
+// Convert a grid cell to its center in canvas px
+function toPx(gx, gy) {
+  return {
+    px: offX + gx * (cs + GAP) + cs / 2,
+    py: offY + gy * (cs + GAP) + cs / 2,
+  };
+}
+
+function resizeCanvas() {
+  canvas.width  = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  if (lastGrid) {
+    computeLayout(lastGrid);
+    for (const sp of Object.values(sprites)) sp.snap();
+  }
+}
+new ResizeObserver(resizeCanvas).observe(canvas);
+
+// ── EntitySprite class ─────────────────────────────────────────────────────
+class EntitySprite {
+  constructor(e) {
+    this.id       = e.id;
+    this.type     = e.type;
+    this.name     = e.name;
+    this.color    = e.color || '#7a1010';
+    this.gx       = e.x;
+    this.gy       = e.y;
+    this.isActive = false;
+    this.opacity  = 1;
+    this.scale    = 1;
+    this.scaleX   = 1;
+    this.scaleY   = 1;
+    this.bobT     = Math.random() * Math.PI * 2; // stagger idle bobs
+    // Animation: 'idle' | 'move' | 'thinking' | 'death' | 'dead'
+    this.anim     = 'idle';
+    this.t        = 0;
+    this.dur      = 0;
+    // Move animation data
+    this.fromPx   = 0; this.fromPy = 0;
+    this.toPx     = 0; this.toPy   = 0;
+    this.moveDx   = 0; this.moveDy = 0;
+    // Set initial pixel position
+    this.px = 0; this.py = 0;
+    this.snap();
+  }
+
+  // Instantly place at correct grid pixel position
+  snap() {
+    const p = toPx(this.gx, this.gy);
+    this.px = p.px; this.py = p.py;
+    if (this.anim === 'move') { this.anim = 'idle'; this.scaleX = 1; this.scaleY = 1; }
+  }
+
+  startMove(fromX, fromY, toX, toY) {
+    const from = toPx(fromX, fromY);
+    const to   = toPx(toX,   toY);
+    this.gx    = toX; this.gy    = toY;
+    this.fromPx = from.px; this.fromPy = from.py;
+    this.toPx   = to.px;   this.toPy   = to.py;
+    this.moveDx = toX - fromX;
+    this.moveDy = toY - fromY;
+    this.px     = from.px; this.py = from.py;
+    this.anim   = 'move';
+    this.t      = 0; this.dur = 200;
+  }
+
+  startThinking() {
+    if (this.anim === 'death' || this.anim === 'dead') return;
+    this.anim = 'thinking';
+    this.t    = 0; this.dur = 1500;
+  }
+
+  startDeath() {
+    if (this.anim === 'dead') return;
+    this.anim    = 'death';
+    this.t       = 0; this.dur = 500;
+    this.scale   = 1; this.opacity = 1;
+  }
+
+  update(dt) {
+    switch (this.anim) {
+
+      case 'idle':
+        this.bobT  += dt * 0.002;
+        this.scaleX = 1; this.scaleY = 1; this.scale = 1;
+        break;
+
+      case 'move': {
+        this.t = Math.min(1, this.t + dt / this.dur);
+        // Ease-out cubic
+        const ease = 1 - Math.pow(1 - this.t, 3);
+        this.px = this.fromPx + (this.toPx - this.fromPx) * ease;
+        this.py = this.fromPy + (this.toPy - this.fromPy) * ease;
+        // Squash and stretch along the travel axis
+        const peak  = Math.sin(this.t * Math.PI);
+        const horiz = Math.abs(this.moveDx) >= Math.abs(this.moveDy);
+        this.scaleX = horiz ? 1 + 0.22 * peak : 1 - 0.10 * peak;
+        this.scaleY = horiz ? 1 - 0.10 * peak : 1 + 0.22 * peak;
+        // Landing squash at the end of travel
+        if (this.t > 0.82) {
+          const land  = Math.sin(((this.t - 0.82) / 0.18) * Math.PI) * 0.14;
+          this.scaleX = 1 + land; this.scaleY = 1 - land;
+        }
+        if (this.t >= 1) { this.anim = 'idle'; this.scaleX = 1; this.scaleY = 1; }
+        break;
+      }
+
+      case 'thinking':
+        this.t = Math.min(1, this.t + dt / this.dur);
+        // 3 breath pulses while the enemy "charges up"
+        this.scale = 1 + 0.18 * Math.abs(Math.sin(this.t * Math.PI * 3));
+        if (this.t >= 1) { this.anim = 'idle'; this.scale = 1; }
+        break;
+
+      case 'death':
+        this.t       = Math.min(1, this.t + dt / this.dur);
+        this.scale   = 1 - this.t;
+        this.opacity = 1 - this.t;
+        if (this.t >= 1) this.anim = 'dead';
+        break;
+    }
+  }
+
+  draw(ctx, pulseT) {
+    if (this.anim === 'dead') return;
+
+    const r   = cs * 0.38;
+    const bob = (this.anim === 'idle' || this.anim === 'thinking')
+      ? Math.sin(this.bobT) * (this.isActive ? 2.5 : 1.2)
+      : 0;
+
+    ctx.save();
+    ctx.globalAlpha = this.opacity;
+    ctx.translate(this.px, this.py + bob);
+    ctx.scale(this.scaleX * this.scale, this.scaleY * this.scale);
+
+    // Active glow halo
+    if (this.isActive) {
+      const haloR = r * (1.55 + 0.12 * Math.sin(pulseT));
+      ctx.beginPath();
+      if (this.type === 'enemy') {
+        const s = haloR * 2;
+        ctx.roundRect(-s / 2, -s / 2, s, s, r * 0.3);
+      } else {
+        ctx.arc(0, 0, haloR, 0, Math.PI * 2);
+      }
+      const rgb = this.type === 'enemy' ? '255,80,80' : '255,255,255';
+      ctx.fillStyle = `rgba(${rgb},0.12)`;
+      ctx.fill();
+      ctx.shadowColor = this.type === 'enemy' ? '#ff5050' : '#ffffff';
+      ctx.shadowBlur  = 18;
     }
 
-    el.innerHTML = '';
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const cell = document.createElement('div');
-        cell.className = 'cell ' + (grid[y][x] === 2 ? 'cell-wall' : 'cell-open');
+    // Thinking: arc that sweeps around the enemy as it charges up
+    if (this.anim === 'thinking') {
+      const chargeR = r * (1.3 + 0.6 * this.t);
+      ctx.beginPath();
+      ctx.arc(0, 0, chargeR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.t);
+      ctx.strokeStyle = `rgba(255,100,100,${0.3 + 0.5 * this.t})`;
+      ctx.lineWidth   = 2.5;
+      ctx.stroke();
+    }
 
-        const ent = entMap[`${x},${y}`];
-        if (ent) {
-          const piece = document.createElement('div');
-          const isActive = ent.id === s.currentTurn;
-          piece.className = 'piece'
-            + (ent.type === 'enemy' ? ' piece-enemy' : '')
-            + (isActive ? ' piece-active' : '');
-          piece.style.background = ent.color || '#7a1010';
-          piece.textContent = ent.type === 'enemy'
-            ? '⚔'
-            : ent.name.charAt(0).toUpperCase();
-          cell.appendChild(piece);
-        }
-        el.appendChild(cell);
+    // Body
+    if (this.type === 'enemy') {
+      const s = r * 1.75;
+      ctx.beginPath();
+      ctx.roundRect(-s / 2, -s / 2, s, s, r * 0.28);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+      if (this.isActive) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth   = r * 0.13;
+        ctx.stroke();
       }
     }
+
+    // Icon / initial
+    ctx.shadowBlur   = 0;
+    ctx.fillStyle    = '#fff';
+    ctx.font         = `bold ${Math.round(r)}px sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+      this.type === 'enemy' ? '⚔' : this.name.charAt(0).toUpperCase(),
+      0, 1
+    );
+
+    ctx.restore();
+  }
+}
+
+// ── Renderer ───────────────────────────────────────────────────────────────
+const sprites = {};   // entityId → EntitySprite
+let gameState = null;
+let pulseT    = 0;
+let lastTime  = null;
+
+function gameLoop(ts) {
+  requestAnimationFrame(gameLoop);
+  const dt = lastTime != null ? Math.min(ts - lastTime, 100) : 16;
+  lastTime  = ts;
+  pulseT   += dt * 0.004;
+
+  for (const sp of Object.values(sprites)) sp.update(dt);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (lastGrid) drawGrid(lastGrid);
+  for (const sp of Object.values(sprites)) sp.draw(ctx, pulseT);
+}
+requestAnimationFrame(gameLoop);
+
+function drawGrid(grid) {
+  const rows = grid.length, cols = (grid[0] || []).length;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      ctx.fillStyle = grid[y][x] === 2 ? '#383838' : '#1c1f2e';
+      ctx.beginPath();
+      ctx.roundRect(offX + x * (cs + GAP), offY + y * (cs + GAP), cs, cs, 4);
+      ctx.fill();
+    }
+  }
+}
+
+// ── Socket events ──────────────────────────────────────────────────────────
+const socket = io();
+
+socket.on('game:state', (s) => {
+  const gridChanged = !lastGrid
+    || lastGrid.length              !== s.grid.length
+    || (lastGrid[0] || []).length   !== (s.grid[0] || []).length;
+
+  lastGrid  = s.grid;
+  gameState = s;
+
+  if (gridChanged) {
+    computeLayout(s.grid);
+    for (const sp of Object.values(sprites)) sp.snap();
   }
 
-  function renderSidebar(s) {
-    document.getElementById('phase-badge').textContent =
-      s.phase === 'playing' ? 'Playing' : 'Setup Phase';
+  const seen = new Set();
+  for (const e of s.entities) {
+    seen.add(e.id);
+    let sp = sprites[e.id];
+    if (!sp) { sprites[e.id] = new EntitySprite(e); sp = sprites[e.id]; }
 
-    const overlay = document.getElementById('setup-overlay');
-    overlay.style.display = s.phase === 'playing' ? 'none' : 'flex';
+    sp.isActive = e.id === s.currentTurn;
+    sp.color    = e.color || '#7a1010';
+    sp.name     = e.name;
 
-    const list = document.getElementById('turn-list');
-    list.innerHTML = '';
-    s.turnOrder.forEach((id, i) => {
-      const e = s.entities.find(e => e.id === id);
-      if (!e) return;
-      const item = document.createElement('div');
-      item.className = 'turn-item'
-        + (id === s.currentTurn ? ' active' : '')
-        + (!e.alive ? ' dead' : '');
-
-      const dot = document.createElement('div');
-      dot.className = 'turn-dot';
-      dot.style.background = e.color || '#7a1010';
-      if (e.type === 'enemy') dot.style.borderRadius = '3px';
-
-      item.innerHTML = `<span class="turn-num">${i + 1}.</span>`;
-      item.appendChild(dot);
-      item.insertAdjacentHTML('beforeend', `<span>${e.name}</span>`);
-      list.appendChild(item);
-    });
+    // Only snap if not mid-animation and position diverged (e.g. reset)
+    if (sp.anim !== 'move' && (sp.gx !== e.x || sp.gy !== e.y)) {
+      sp.gx = e.x; sp.gy = e.y; sp.snap();
+    }
+    if (!e.alive && sp.anim !== 'death' && sp.anim !== 'dead') {
+      sp.startDeath();
+    }
+  }
+  // Prune fully-dead sprites for entities removed from state
+  for (const id of Object.keys(sprites)) {
+    if (!seen.has(+id) && sprites[id].anim === 'dead') delete sprites[id];
   }
 
-  socket.on('game:state', (s) => {
-    lastState = s;
-    renderGrid(s);
-    renderSidebar(s);
+  updateSidebar(s);
+});
+
+socket.on('game:entity-moved', ({ id, fromX, fromY, toX, toY }) => {
+  const sp = sprites[id];
+  if (sp) sp.startMove(fromX, fromY, toX, toY);
+});
+
+socket.on('game:enemy-thinking', ({ id }) => {
+  const sp = sprites[id];
+  if (sp) sp.startThinking();
+});
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+function updateSidebar(s) {
+  document.getElementById('phase-badge').textContent =
+    s.phase === 'playing' ? 'Playing' : 'Setup Phase';
+  document.getElementById('setup-overlay').style.display =
+    s.phase === 'playing' ? 'none' : 'flex';
+
+  const list = document.getElementById('turn-list');
+  list.innerHTML = '';
+  s.turnOrder.forEach((id, i) => {
+    const e = s.entities.find(e => e.id === id);
+    if (!e) return;
+    const item = document.createElement('div');
+    item.className = 'turn-item'
+      + (id === s.currentTurn ? ' active' : '')
+      + (!e.alive ? ' dead' : '');
+    const dot = document.createElement('div');
+    dot.className = 'turn-dot';
+    dot.style.background = e.color || '#7a1010';
+    if (e.type === 'enemy') dot.style.borderRadius = '3px';
+    item.innerHTML = `<span class="turn-num">${i + 1}.</span>`;
+    item.appendChild(dot);
+    item.insertAdjacentHTML('beforeend', `<span>${e.name}</span>`);
+    list.appendChild(item);
   });
-
-  window.addEventListener('resize', () => { if (lastState) renderGrid(lastState); });
+}
 </script>
 </body>
 </html>

@@ -97,6 +97,7 @@ function doTurn() {
   } else {
     // Enemy acts after a visible 1.5 s delay so players can watch
     if (enemyTimer) clearTimeout(enemyTimer);
+    io.emit('game:enemy-thinking', { id: cur.id });
     enemyTimer = setTimeout(() => {
       runEnemy(cur);
       broadcast();
@@ -193,6 +194,35 @@ function runEnemy(enemy) {
   const path = findPath(enemy.x, enemy.y, target.x, target.y);
   if (!path || path.length < 2) return; // No valid path or already at target
 
+  // Try diagonal first, then cardinal fallbacks
+  const candidates = [];
+  if (dx !== 0 && dy !== 0) candidates.push([dx, dy]);
+  if (dx !== 0) candidates.push([dx, 0]);
+  if (dy !== 0) candidates.push([0, dy]);
+
+  const oldX = enemy.x, oldY = enemy.y;
+
+  for (const [mx, my] of candidates) {
+    const nx = enemy.x + mx, ny = enemy.y + my;
+    if (!cellOpen(nx, ny)) continue;
+    const blocker = entityAt(nx, ny);
+    if (blocker) {
+      if (blocker.type === 'player') { destroy(blocker.id); enemy.x = nx; enemy.y = ny; }
+      // don't move into another enemy
+    } else {
+      enemy.x = nx; enemy.y = ny;
+    }
+    break;
+  }
+
+  if (enemy.x !== oldX || enemy.y !== oldY) {
+    io.emit('game:entity-moved', {
+      id: enemy.id,
+      fromX: oldX, fromY: oldY,
+      toX: enemy.x, toY: enemy.y,
+      dx: enemy.x - oldX, dy: enemy.y - oldY,
+    });
+  }
   // Get next step (index 1 because index 0 is current position)
   const next = path[1];
   const dx = next.x - enemy.x;
@@ -231,10 +261,18 @@ function applyMove(socketId, dir) {
   const nx = player.x + d[0], ny = player.y + d[1];
   if (!cellOpen(nx, ny)) return; // blocked — don't spend the turn
 
+  const oldX = player.x, oldY = player.y;
   const blocker = entityAt(nx, ny);
   if (blocker) destroy(blocker.id); // bump kill
   player.x = nx;
   player.y = ny;
+
+  io.emit('game:entity-moved', {
+    id: player.id,
+    fromX: oldX, fromY: oldY,
+    toX: nx, toY: ny,
+    dx: d[0], dy: d[1],
+  });
 
   advanceTurn();
 }
