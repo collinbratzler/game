@@ -75,14 +75,6 @@
     #p-dot  { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
     #p-name { font-size: 0.9rem; font-weight: 600; }
 
-    .mt-row { display: flex; gap: 4px; }
-    .mt-btn {
-      padding: 4px 9px; font-size: 0.68rem; border-radius: 6px;
-      border: 1px solid #2a2a3a; background: #13132a; color: #666;
-      cursor: pointer; transition: all 0.1s;
-    }
-    .mt-btn.sel { border-color: #4a9de0; color: #4a9de0; background: #0d1c2e; }
-
     #turn-banner {
       width: 100%; text-align: center; padding: 9px;
       border-radius: 9px; font-size: 0.9rem; font-weight: 600;
@@ -177,10 +169,6 @@
       <div id="p-dot"></div>
       <span id="p-name">—</span>
     </div>
-    <div class="mt-row">
-      <button class="mt-btn sel" data-m="cardinal" onclick="switchMove(this)">4-dir</button>
-      <button class="mt-btn"     data-m="diagonal" onclick="switchMove(this)">8-dir</button>
-    </div>
   </div>
 
   <div id="turn-banner" class="banner-waiting">Waiting…</div>
@@ -243,31 +231,16 @@
   });
 
   // ── Movement selection (lobby) ─────────────────────────────────────────────
+  function applyMovement(type) {
+    myMovement = type;
+    document.body.classList.toggle('cardinal', type === 'cardinal');
+    socket.emit('player:movement', { movement: type });
+  }
+
   function pickMove(el) {
     document.querySelectorAll('.move-card').forEach(c => c.classList.remove('sel'));
     el.classList.add('sel');
     applyMovement(el.dataset.m);
-  }
-
-  // ── Movement selection (in-game toggle) ───────────────────────────────────
-  function switchMove(el) {
-    document.querySelectorAll('.mt-btn').forEach(b => b.classList.remove('sel'));
-    el.classList.add('sel');
-    applyMovement(el.dataset.m);
-  }
-
-  function applyMovement(m) {
-    myMovement = m;
-    document.body.classList.toggle('cardinal', m === 'cardinal');
-    socket.emit('player:choose-movement', { movement: m });
-    // Keep lobby cards in sync
-    document.querySelectorAll('.move-card').forEach(c =>
-      c.classList.toggle('sel', c.dataset.m === m)
-    );
-    // Keep in-game toggle in sync
-    document.querySelectorAll('.mt-btn').forEach(b =>
-      b.classList.toggle('sel', b.dataset.m === m)
-    );
   }
 
   // ── Player move ────────────────────────────────────────────────────────────
@@ -329,6 +302,13 @@
     // When it's not my turn, switch to waiting panel
     if (s.phase === 'playing') {
       const myTurn = s.currentTurn === myId;
+      if (myTurn && !itIsMyTurn) {
+        itIsMyTurn = true;
+        document.getElementById('turn-banner').textContent = 'Your turn! Pick a direction.';
+        document.getElementById('turn-banner').className   = 'banner-mine';
+        document.getElementById('dpad-area').style.display = 'flex';
+        document.getElementById('wait-panel').style.display = 'none';
+      }
       if (!myTurn && itIsMyTurn) {
         itIsMyTurn = false;
         document.getElementById('dpad-area').style.display  = 'none';
