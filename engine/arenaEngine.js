@@ -420,14 +420,35 @@ function handleDisconnect(socketId) {
   _io.emit('arena:state', getSnapshot());
 }
 
-function handleReset(currentModule) {
+// Called when the host navigates back to the arena module between rounds.
+// Resets everything to lobby/setup state so players can re-select their loadout.
+function handleSetupMode() {
   _clearTimer();
-  for (const p of _registry.getArenaPlayers()) {
-    _registry.update(p.socketId, { inArena: false });
-  }
+  arena.mode           = 'setup';
   arena.turnOrder      = [];
   arena.currentTurnIdx = 0;
   arena.pendingActions = {};
+  for (const p of _registry.getArenaPlayers()) {
+    _registry.update(p.socketId, { inArena: false });
+  }
+  for (const p of _registry.getAll()) {
+    _registry.update(p.socketId, { charSelectDone: false });
+  }
+  _io.emit('arena:state', getSnapshot());
+}
+
+function handleReset(currentModule) {
+  _clearTimer();
+  arena.mode           = 'setup';
+  arena.turnOrder      = [];
+  arena.currentTurnIdx = 0;
+  arena.pendingActions = {};
+  for (const p of _registry.getArenaPlayers()) {
+    _registry.update(p.socketId, { inArena: false });
+  }
+  for (const p of _registry.getAll()) {
+    _registry.update(p.socketId, { charSelectDone: false });
+  }
   _spawnEnemiesFromConfig();
   for (const p of _registry.getAll()) {
     _io.to(p.socketId).emit('player:load-module', currentModule);
@@ -601,6 +622,7 @@ module.exports = {
   handleAttack,
   handleDisconnect,
   handleReset,
+  handleSetupMode,
   handleConfig,
   handleStart,
   handleMode,
