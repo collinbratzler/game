@@ -1,1 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browser Game — Docs</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    body {
+      font-family: monospace;
+      background: #111;
+      color: #ccc;
+      line-height: 1.6;
+      padding: 48px 24px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    h1 { font-size: 1.6rem; color: #fff; margin-bottom: 8px; }
+    h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #555;
+      margin: 36px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1e1e1e;
+    }
+    h3 { font-size: 1rem; color: #eee; margin-bottom: 6px; }
+
+    .subtitle { font-size: 0.85rem; color: #444; margin-bottom: 36px; }
+
+    p { font-size: 0.9rem; color: #999; margin-bottom: 10px; }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 16px 18px;
+    }
+    .card h3 { font-size: 0.95rem; color: #ddd; margin-bottom: 4px; }
+    .card p  { font-size: 0.82rem; color: #555; margin: 0; }
+    .card .tag {
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: #222;
+      color: #444;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #444;
+      border-bottom: 1px solid #1e1e1e;
+    }
+    td {
+      padding: 8px 12px;
+      color: #888;
+      border-bottom: 1px solid #181818;
+      vertical-align: top;
+    }
+    td:first-child { color: #4a9de0; white-space: nowrap; }
+    td code {
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 0.8rem;
+      color: #b39ddb;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+    }
+    .badge.green  { background: #1a3a1a; color: #4caf50; }
+    .badge.blue   { background: #1a2a3a; color: #4a9de0; }
+    .badge.orange { background: #2a1e0a; color: #f59e42; }
+
+    pre {
+      background: #0d0d0d;
+      border: 1px solid #1e1e1e;
+      border-radius: 6px;
+      padding: 16px 18px;
+      font-size: 0.82rem;
+      color: #888;
+      overflow-x: auto;
+    }
+    pre .comment { color: #333; }
+    pre .key     { color: #4a9de0; }
+    pre .val     { color: #b39ddb; }
+  </style>
+</head>
+<body>
+
+  <h1>Browser Game</h1>
+  <p class="subtitle">Real-time multiplayer party game — documentation index</p>
+
+  <!-- ── Overview ── -->
+  <h2>Overview</h2>
+  <p>
+    A WebSocket-driven party game where a host controls the experience for connected
+    players in real time. Modules (screens) are pushed to players on demand; minigames
+    are sent individually or to the whole room.
+  </p>
+
+  <!-- ── Pages ── -->
+  <h2>Pages</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h3>/host.html</h3>
+      <p>Host control panel — push modules, send minigames, manage arena.</p>
+      <span class="tag">host only</span>
+    </div>
+    <div class="card">
+      <h3>/player.html</h3>
+      <p>Player view — receives pushed modules and renders the active screen.</p>
+      <span class="tag">player</span>
+    </div>
+    <div class="card">
+      <h3>/display.html</h3>
+      <p>Projector/TV display — shows the shared game state for the room.</p>
+      <span class="tag">display</span>
+    </div>
+  </div>
+
+  <!-- ── Modules ── -->
+  <h2>Modules</h2>
+  <table>
+    <thead>
+      <tr><th>Module</th><th>Description</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>waiting</td><td>Lobby screen while players join</td><td><span class="badge blue">player</span> <span class="badge green">display</span></td></tr>
+      <tr><td>character-select</td><td>Choose class (Barbarian / Wizard / Healer)</td><td><span class="badge blue">player</span> <span class="badge green">display</span></td></tr>
+      <tr><td>arena</td><td>Top-down grid combat with enemies</td><td><span class="badge blue">player</span> <span class="badge green">display</span></td></tr>
+      <tr><td>chat</td><td>Free-text chat room</td><td><span class="badge blue">player</span> <span class="badge green">display</span></td></tr>
+      <tr><td>pvp</td><td>Player-vs-player combat</td><td><span class="badge blue">player</span> <span class="badge green">display</span></td></tr>
+      <tr><td>dungeon</td><td>Roguelike dungeon crawler</td><td><span class="badge blue">player</span> <span class="badge green">display</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── Minigames ── -->
+  <h2>Minigames</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>minigame-reflex</td><td>Reflex Test</td><td>Tap as fast as possible when the prompt appears</td></tr>
+      <tr><td>minigame-reflex-2</td><td>Reflex Test Lv.2</td><td>Harder timing window</td></tr>
+      <tr><td>minigame-reflex-3</td><td>Reflex Test Lv.3</td><td>Hardest timing window</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── Socket Events ── -->
+  <h2>Socket Events (Host → Server)</h2>
+  <table>
+    <thead>
+      <tr><th>Event</th><th>Payload</th><th>Effect</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>host:push</td><td><code>moduleId</code></td><td>Pushes a module to all players and the display</td></tr>
+      <tr><td>host:send-minigame</td><td><code>{ socketId, minigame }</code></td><td>Sends a minigame to one player</td></tr>
+      <tr><td>host:send-minigame-all</td><td><code>{ minigame }</code></td><td>Sends a minigame to every connected player</td></tr>
+      <tr><td>host:set-class</td><td><code>{ socketId, playerClass }</code></td><td>Overrides a player's character class</td></tr>
+      <tr><td>host:arena-start</td><td><code>{ width, height, enemyCount }</code></td><td>Initialises and starts the arena game</td></tr>
+      <tr><td>host:arena-reset</td><td>—</td><td>Resets arena state</td></tr>
+      <tr><td>host:request-state</td><td>—</td><td>Requests current player list and active module</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── Setup ── -->
+  <h2>Setup</h2>
+  <pre><span class="comment"># Install dependencies</span>
+npm install
+
+<span class="comment"># Start the server (default port 3000)</span>
+npm start</pre>
+
+  <!-- ── Project Layout ── -->
+  <h2>Project Layout</h2>
+  <pre><span class="key">engine/</span>       <span class="comment">— game logic (arena, dungeon, items, players)</span>
+<span class="key">levels/</span>       <span class="comment">— JSON level definitions</span>
+<span class="key">public/</span>       <span class="comment">— static client files served by Express</span>
+<span class="key">  modules/</span>    <span class="comment">— individual module HTML files</span>
+<span class="key">docs/</span>         <span class="comment">— this documentation</span>
+<span class="key">server.js</span>     <span class="comment">— Express + Socket.IO entry point</span></pre>
+
+</body>
+</html>
