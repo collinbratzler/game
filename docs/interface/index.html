@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Survive the Internet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #4a7a3a;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }
+
+    /* ── Browser chrome ── */
+    #browser-chrome {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: #c0c0c0;
+      border-bottom: 2px solid #808080;
+      padding: 4px 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      z-index: 9999;
+    }
+
+    #browser-chrome .nav-btn {
+      width: 22px; height: 20px;
+      background: #d4d0c8;
+      border: 2px solid;
+      border-color: #fff #808080 #808080 #fff;
+      cursor: pointer;
+      font-size: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #browser-chrome .nav-btn:active {
+      border-color: #808080 #fff #fff #808080;
+    }
+
+    #address-bar {
+      flex: 1;
+      height: 20px;
+      background: white;
+      border: 2px inset #808080;
+      padding: 0 4px;
+      font-size: 11px;
+      font-family: Arial, sans-serif;
+    }
+
+    #new-tab-btn {
+      background: #d4d0c8;
+      border: 2px solid;
+      border-color: #fff #808080 #808080 #fff;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #new-tab-btn:active {
+      border-color: #808080 #fff #fff #808080;
+    }
+
+    /* ── Desktop / canvas ── */
+    #canvas {
+      position: fixed;
+      top: 34px; left: 0; right: 0; bottom: 22px;
+      overflow: hidden;
+    }
+
+    /* ── Status bar ── */
+    #status-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 22px;
+      background: #c0c0c0;
+      border-top: 2px solid #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 6px;
+      font-size: 11px;
+      color: #000;
+    }
+    #status-bar .status-panel {
+      border: 1px inset #808080;
+      padding: 1px 6px;
+      margin-right: 4px;
+    }
+
+    /* ── Post cards ── */
+    .post-card {
+      position: absolute;
+      background: #f0ebe0;
+      border: 3px solid #2a5a1a;
+      min-width: 180px;
+      min-height: 100px;
+      box-shadow: 4px 4px 0 #1a3a0a;
+      cursor: default;
+    }
+
+    .post-card .card-header {
+      background: linear-gradient(to bottom, #3a7a2a, #2a5a1a);
+      color: white;
+      padding: 3px 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: grab;
+      height: 24px;
+    }
+    .post-card .card-header:active { cursor: grabbing; }
+
+    .post-card .card-header .user-info {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .post-card .avatar {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 1px solid #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .post-card .close-btn {
+      width: 16px; height: 14px;
+      background: #c0392b;
+      border: 1px solid #922b21;
+      color: white;
+      font-size: 9px;
+      line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .post-card .close-btn:hover { background: #e74c3c; }
+
+    .post-card .card-body {
+      padding: 8px 10px 6px;
+    }
+
+    .post-card .post-text {
+      color: #1a1a1a;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: 36px;
+      word-break: break-word;
+      white-space: pre-wrap;
+      outline: none;
+      width: 100%;
+    }
+
+    .post-card .post-text[contenteditable="true"] {
+      background: #fffef5;
+      border: 1px dashed #2a5a1a;
+      padding: 2px 4px;
+      cursor: text;
+    }
+
+    .post-card .hashtag {
+      display: inline-block;
+      margin-top: 6px;
+      color: #2a5a1a;
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .post-card .hashtag[contenteditable="true"] {
+      background: #fffef5;
+      border: 1px dashed #2a5a1a;
+      padding: 1px 3px;
+      cursor: text;
+      outline: none;
+    }
+
+    .post-card .edit-hint {
+      font-size: 9px;
+      color: #888;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    /* ── Vote bar at bottom ── */
+    #vote-bar {
+      position: fixed;
+      bottom: 22px; left: 0; right: 0;
+      background: #2a5a1a;
+      color: #fff;
+      text-align: center;
+      padding: 4px;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      border-top: 2px solid #1a3a0a;
+      z-index: 100;
+    }
+
+    /* resize handle */
+    .post-card .resize-handle {
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 12px; height: 12px;
+      cursor: se-resize;
+      background: linear-gradient(135deg, transparent 40%, #2a5a1a 40%, #2a5a1a 55%, transparent 55%, transparent 70%, #2a5a1a 70%, #2a5a1a 85%, transparent 85%);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Browser chrome -->
+  <div id="browser-chrome">
+    <button class="nav-btn" title="Back">&#9664;</button>
+    <button class="nav-btn" title="Forward">&#9654;</button>
+    <button class="nav-btn" title="Refresh">&#8635;</button>
+    <button class="nav-btn" title="Home">&#8962;</button>
+    <input id="address-bar" type="text" value="www.survivetheinternet.com/social-media" readonly />
+    <button id="new-tab-btn" onclick="createCard()">+ New Post</button>
+  </div>
+
+  <!-- Canvas where cards live -->
+  <div id="canvas"></div>
+
+  <!-- Vote prompt bar -->
+  <div id="vote-bar">Vote for the person who looks the most ridiculous.</div>
+
+  <!-- Status bar -->
+  <div id="status-bar">
+    <span class="status-panel" id="status-msg">Done</span>
+    <span class="status-panel">survivetheinternet.com</span>
+  </div>
+
+<script>
+  const AVATAR_COLORS = ['#e74c3c','#3498db','#9b59b6','#e67e22','#1abc9c','#e91e63','#00bcd4','#ff9800'];
+  const HASHTAGS = ['#nFldraFt','#whycollegematters','#michelinstar','#clownschool','#survivethis','#trending','#viral','#lol'];
+  const NAMES = ['Frosty','Donner','Buddy','Nick','Dasher','Vixen','Comet','Cupid'];
+  const POSTS = [
+    'Did you put your name in the Goblet of Fire?!',
+    'cancel my student loans pls',
+    'fine. just fine',
+    'we have the same shoes',
+    'I have no idea what I\'m doing',
+    'send help immediately',
+    'this is fine',
+    'nobody came to my party :(',
+  ];
+
+  let zCounter = 10;
+  let cardCount = 0;
+
+  const SEED_CARDS = [
+    { name: 'Frosty',  post: 'Did you put your name in the Goblet of Fire?!', tag: '#nFldraFt',          x: 30,  y: 20,  color: '#3498db' },
+    { name: 'Donner',  post: 'cancel my student loans pls',                   tag: '#whycollegematters', x: 320, y: 20,  color: '#9b59b6' },
+    { name: 'Buddy',   post: 'fine. just fine',                               tag: '#michelinstar',      x: 30,  y: 200, color: '#e74c3c' },
+    { name: 'Nick',    post: 'we have the same shoes',                        tag: '#clownschool',       x: 320, y: 200, color: '#e67e22' },
+  ];
+
+  function createCard(opts = {}) {
+    cardCount++;
+    const canvas = document.getElementById('canvas');
+    const idx = (cardCount - 1) % NAMES.length;
+
+    const name    = opts.name  || NAMES[idx];
+    const post    = opts.post  || POSTS[idx];
+    const tag     = opts.tag   || HASHTAGS[idx];
+    const color   = opts.color || AVATAR_COLORS[idx % AVATAR_COLORS.length];
+    const x       = opts.x     ?? Math.random() * Math.max(10, canvas.offsetWidth  - 240);
+    const y       = opts.y     ?? Math.random() * Math.max(10, canvas.offsetHeight - 180);
+
+    const card = document.createElement('div');
+    card.className = 'post-card';
+    card.style.left = x + 'px';
+    card.style.top  = y + 'px';
+    card.style.zIndex = ++zCounter;
+
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="user-info">
+          <div class="avatar" style="background:${color}">${name[0]}</div>
+          <span>${name}</span>
+        </div>
+        <div class="close-btn" title="Close">✕</div>
+      </div>
+      <div class="card-body">
+        <div class="post-text" title="Double-click to edit">${escHtml(post)}</div>
+        <div class="hashtag">${escHtml(tag)}</div>
+        <div class="edit-hint">double-click to edit</div>
+      </div>
+      <div class="resize-handle"></div>
+    `;
+
+    // Bring to front on click
+    card.addEventListener('mousedown', () => {
+      card.style.zIndex = ++zCounter;
+    });
+
+    // Drag from header
+    const header = card.querySelector('.card-header');
+    makeDraggable(card, header);
+
+    // Close button
+    card.querySelector('.close-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      card.remove();
+    });
+
+    // Double-click to edit post text
+    const postText = card.querySelector('.post-text');
+    postText.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      enableEditing(postText, card);
+    });
+
+    // Double-click to edit hashtag
+    const hashTag = card.querySelector('.hashtag');
+    hashTag.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      enableEditing(hashTag, card);
+    });
+
+    // Resize handle
+    makeResizable(card, card.querySelector('.resize-handle'));
+
+    canvas.appendChild(card);
+    setStatus('New post created');
+    return card;
+  }
+
+  function enableEditing(el, card) {
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    // select all text
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    // auto-resize card as text grows
+    el.addEventListener('input', () => autoResize(card), { passive: true });
+
+    function stopEdit(e) {
+      if (!el.contains(e.target)) {
+        el.removeAttribute('contenteditable');
+        el.removeEventListener('input', autoResize);
+        document.removeEventListener('mousedown', stopEdit);
+      }
+    }
+    // stop on outside click, slight delay so the dblclick doesn't immediately close
+    setTimeout(() => document.addEventListener('mousedown', stopEdit), 50);
+
+    // stop on Enter (not Shift+Enter)
+    el.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        el.removeAttribute('contenteditable');
+        el.removeEventListener('keydown', onKey);
+      }
+    });
+  }
+
+  function autoResize(card) {
+    // cards grow to fit content naturally via min-height; just reflow
+    card.style.width = card.offsetWidth + 'px'; // lock width, let height grow
+  }
+
+  function makeDraggable(card, handle) {
+    let startX, startY, origLeft, origTop, dragging = false;
+
+    handle.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('close-btn')) return;
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      origLeft = card.offsetLeft;
+      origTop  = card.offsetTop;
+      card.style.zIndex = ++zCounter;
+      handle.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const canvas = document.getElementById('canvas');
+      const nx = origLeft + (e.clientX - startX);
+      const ny = origTop  + (e.clientY - startY);
+      card.style.left = Math.max(0, Math.min(nx, canvas.offsetWidth  - card.offsetWidth))  + 'px';
+      card.style.top  = Math.max(0, Math.min(ny, canvas.offsetHeight - card.offsetHeight)) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (dragging) {
+        dragging = false;
+        handle.style.cursor = 'grab';
+      }
+    });
+  }
+
+  function makeResizable(card, handle) {
+    let startX, startY, origW, origH, resizing = false;
+
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      origW  = card.offsetWidth;
+      origH  = card.offsetHeight;
+      card.style.zIndex = ++zCounter;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!resizing) return;
+      const nw = Math.max(160, origW + (e.clientX - startX));
+      const nh = Math.max(90,  origH + (e.clientY - startY));
+      card.style.width  = nw + 'px';
+      card.style.height = nh + 'px';
+    });
+
+    document.addEventListener('mouseup', () => { resizing = false; });
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function setStatus(msg) {
+    document.getElementById('status-msg').textContent = msg;
+    setTimeout(() => document.getElementById('status-msg').textContent = 'Done', 2000);
+  }
+
+  // Seed initial cards
+  SEED_CARDS.forEach(createCard);
+</script>
+</body>
+</html>
