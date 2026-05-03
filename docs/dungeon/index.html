@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dungeon Cards</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: radial-gradient(ellipse at 60% 40%, #5a4a2a 0%, #2e2010 60%, #1a1008 100%);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      color: #fff;
+    }
+
+    /* ── Top HUD bar ── */
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 44px;
+      background: rgba(0,0,0,0.7);
+      border-bottom: 2px solid #5a3a00;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 14px;
+      z-index: 9000;
+    }
+
+    #hud .turn-badge {
+      background: #8b4513;
+      border: 2px solid #d4892a;
+      border-radius: 4px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #ffd080;
+    }
+
+    #hud .innate-text {
+      font-size: 11px;
+      color: #c8a060;
+      letter-spacing: 0.5px;
+      flex: 1;
+    }
+
+    #hud .player-block {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #hud .player-name {
+      font-weight: bold;
+      color: #ffd080;
+      font-size: 13px;
+    }
+    #hud .hp-bar-wrap {
+      width: 90px;
+      height: 10px;
+      background: #400;
+      border-radius: 5px;
+      border: 1px solid #800;
+      overflow: hidden;
+    }
+    #hud .hp-bar {
+      height: 100%;
+      width: 50%;
+      background: linear-gradient(to right, #c0392b, #e74c3c);
+      border-radius: 5px;
+      transition: width 0.4s;
+    }
+    #hud .hp-text {
+      font-size: 11px;
+      color: #ff8080;
+      min-width: 52px;
+    }
+    #hud .dice-count {
+      background: #1a3a00;
+      border: 2px solid #4a8a00;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: #a0ff60;
+    }
+
+    #new-card-btn {
+      background: linear-gradient(to bottom, #5a3a8a, #3a1a6a);
+      border: 2px solid #9a6aff;
+      border-radius: 4px;
+      color: #ddc0ff;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: filter 0.15s;
+      margin-left: auto;
+    }
+    #new-card-btn:hover { filter: brightness(1.25); }
+    #new-card-btn:active { filter: brightness(0.85); }
+
+    /* ── Canvas ── */
+    #canvas {
+      position: fixed;
+      top: 44px; left: 0; right: 0; bottom: 160px;
+      overflow: hidden;
+    }
+
+    /* ── Log panel ── */
+    #log-panel {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 160px;
+      background: rgba(0,0,0,0.85);
+      border-top: 2px solid #5a3a00;
+      display: flex;
+      flex-direction: column;
+    }
+    #log-panel .log-header {
+      background: rgba(90,58,0,0.6);
+      padding: 3px 10px;
+      font-size: 11px;
+      color: #c8a060;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #5a3a00;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #log-panel .log-header button {
+      background: none;
+      border: 1px solid #5a3a00;
+      color: #c8a060;
+      font-size: 10px;
+      padding: 1px 6px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+    #log-panel .log-header button:hover { background: rgba(255,255,255,0.1); }
+    #log-output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      color: #a0d080;
+      line-height: 1.6;
+    }
+    #log-output .log-line { display: flex; gap: 8px; }
+    #log-output .log-time { color: #605040; flex-shrink: 0; }
+    #log-output .log-msg  { color: #a0d080; }
+    #log-output .log-msg.warn  { color: #ffd080; }
+    #log-output .log-msg.error { color: #ff6060; }
+    #log-output .log-msg.info  { color: #60c0ff; }
+    #log-output .log-msg.dice  { color: #c0a0ff; }
+    #log-output .log-msg.heal  { color: #60ff90; }
+    #log-output .log-msg.dmg   { color: #ff8060; }
+
+    /* ── Cards ── */
+    .card {
+      position: absolute;
+      width: 210px;
+      min-height: 170px;
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: visible;
+    }
+
+    /* colour themes */
+    .card.red    { background: linear-gradient(160deg, #7a1a1a 0%, #4a0808 100%); border: 2px solid #c03030; }
+    .card.green  { background: linear-gradient(160deg, #1a5a1a 0%, #0a300a 100%); border: 2px solid #30a030; }
+    .card.purple { background: linear-gradient(160deg, #4a1a7a 0%, #28083a 100%); border: 2px solid #8040c0; }
+    .card.teal   { background: linear-gradient(160deg, #0a5a5a 0%, #052828 100%); border: 2px solid #20a0a0; }
+    .card.dark   { background: linear-gradient(160deg, #2a1a3a 0%, #100810 100%); border: 2px solid #604080; }
+    .card.orange { background: linear-gradient(160deg, #6a3a00 0%, #3a1800 100%); border: 2px solid #c07020; }
+
+    /* header */
+    .card .card-header {
+      padding: 6px 8px 4px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      cursor: grab;
+      border-radius: 6px 6px 0 0;
+    }
+    .card .card-header:active { cursor: grabbing; }
+
+    .card .card-title-block { display: flex; flex-direction: column; gap: 1px; }
+    .card .card-name {
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+    .card .card-tag {
+      font-size: 9px;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .card .card-cost {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.5);
+      border: 2px solid rgba(255,255,255,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      flex-shrink: 0;
+    }
+
+    .card .close-btn {
+      position: absolute;
+      top: -7px; right: -7px;
+      width: 18px; height: 18px;
+      background: #c0392b;
+      border: 2px solid #922b21;
+      border-radius: 50%;
+      color: white;
+      font-size: 9px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-weight: bold;
+      z-index: 10;
+    }
+    .card .close-btn:hover { background: #e74c3c; transform: scale(1.15); }
+
+    /* body */
+    .card .card-body {
+      padding: 2px 10px 8px;
+      flex: 1;
+    }
+
+    .card .card-desc {
+      font-size: 12px;
+      color: rgba(255,255,255,0.8);
+      line-height: 1.4;
+      min-height: 28px;
+      outline: none;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .card .card-desc[contenteditable="true"] {
+      background: rgba(255,255,255,0.08);
+      border: 1px dashed rgba(255,255,255,0.3);
+      padding: 2px 4px;
+      border-radius: 3px;
+      cursor: text;
+    }
+
+    .card .card-reuse {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 9px;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 0.5px;
+      font-style: italic;
+    }
+
+    /* action buttons */
+    .card .card-actions {
+      padding: 0 8px 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .card .action-btn {
+      flex: 1;
+      min-width: 60px;
+      padding: 5px 6px;
+      border-radius: 4px;
+      border: none;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+      letter-spacing: 0.3px;
+      transition: filter 0.12s, transform 0.08s;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    }
+    .card .action-btn:hover  { filter: brightness(1.3); }
+    .card .action-btn:active { filter: brightness(0.8); transform: scale(0.96); }
+
+    .btn-use    { background: linear-gradient(to bottom, #2ecc71, #1a8a48); color: #fff; }
+    .btn-roll   { background: linear-gradient(to bottom, #9b59b6, #6c2d8a); color: #fff; }
+    .btn-attack { background: linear-gradient(to bottom, #e74c3c, #a02020); color: #fff; }
+    .btn-heal   { background: linear-gradient(to bottom, #27ae60, #165a30); color: #fff; }
+    .btn-freeze { background: linear-gradient(to bottom, #2980b9, #1a4f7a); color: #fff; }
+    .btn-info   { background: linear-gradient(to bottom, #7f8c8d, #4a5051); color: #fff; }
+
+    /* resize */
+    .card .resize-handle {
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 14px; height: 14px;
+      cursor: se-resize;
+      opacity: 0.4;
+      background: linear-gradient(135deg,
+        transparent 40%, rgba(255,255,255,0.6) 40%, rgba(255,255,255,0.6) 55%,
+        transparent 55%, transparent 70%, rgba(255,255,255,0.6) 70%,
+        rgba(255,255,255,0.6) 85%, transparent 85%);
+    }
+    .card:hover .resize-handle { opacity: 0.8; }
+
+    /* edit hint */
+    .edit-hint {
+      font-size: 9px;
+      color: rgba(255,255,255,0.25);
+      margin-top: 3px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="turn-badge" id="turn-badge">Turn 1</div>
+  <div class="innate-text" id="innate-text">INNATE: Hero gets an extra 🎲 die every turn.</div>
+  <div class="player-block">
+    <div class="player-name">Hero</div>
+    <div class="hp-bar-wrap"><div class="hp-bar" id="hp-bar"></div></div>
+    <div class="hp-text" id="hp-text">55 / 110</div>
+    <div class="dice-count" id="dice-count">🎲 x4</div>
+  </div>
+  <button id="new-card-btn" onclick="createCard()">＋ New Card</button>
+</div>
+
+<!-- Canvas -->
+<div id="canvas"></div>
+
+<!-- Log panel -->
+<div id="log-panel">
+  <div class="log-header">
+    <span>&#9654; Command Log</span>
+    <button onclick="clearLog()">Clear</button>
+  </div>
+  <div id="log-output"></div>
+</div>
+
+<script>
+  /* ─────────────────────────────────────────
+     State
+  ───────────────────────────────────────── */
+  let zCounter = 10;
+  let hp = 55, maxHp = 110, dice = 4, turn = 1;
+
+  const CARD_THEMES = ['red','green','purple','teal','dark','orange'];
+  const CARD_TEMPLATES = [
+    {
+      name: 'NUNCHUCKS', tag: 'Melee', cost: 3, color: 'red', reuse: false,
+      desc: 'MAX 3 damage. Do ⚔️ damage (one use).',
+      actions: [
+        { label: '⚔️ Attack', cls: 'btn-attack', fn: 'doAttack' },
+        { label: 'ℹ️ Info',   cls: 'btn-info',   fn: 'doInfo'   },
+      ]
+    },
+    {
+      name: 'PLASTER', tag: 'Heal', cost: 2, color: 'green', reuse: true,
+      desc: 'Heal ❤️ 1 health. (Reuseable)',
+      actions: [
+        { label: '❤️ Heal',  cls: 'btn-heal', fn: 'doHeal'   },
+        { label: '🎲 Roll',  cls: 'btn-roll', fn: 'doRoll'   },
+      ]
+    },
+    {
+      name: 'TETRAPHOBIA', tag: 'Curse', cost: 2, color: 'purple', reuse: true,
+      desc: 'Do ⚔️ 4 damage. (Reuseable)',
+      actions: [
+        { label: '⚔️ Attack', cls: 'btn-attack', fn: 'doAttack' },
+        { label: '🎲 Roll',   cls: 'btn-roll',   fn: 'doRoll'   },
+      ]
+    },
+    {
+      name: 'NIGHTMARE', tag: 'Dark', cost: 46, color: 'dark', reuse: false,
+      desc: 'Do ☠️ 999 damage.',
+      actions: [
+        { label: '☠️ Obliterate', cls: 'btn-attack', fn: 'doAttack' },
+      ]
+    },
+    {
+      name: 'WRECKING BALL+', tag: 'Heavy', cost: 1, color: 'orange', reuse: false,
+      desc: '🎲 Reduce counts by 1. (One use this turn)',
+      actions: [
+        { label: '🎲 Roll',    cls: 'btn-roll',   fn: 'doRoll'   },
+        { label: '⚔️ Smash',  cls: 'btn-attack', fn: 'doAttack' },
+      ]
+    },
+    {
+      name: 'SECRET WEAPON+', tag: 'Special', cost: 3, color: 'purple', reuse: false,
+      desc: 'Gain a random blessing.',
+      actions: [
+        { label: '✨ Activate', cls: 'btn-use',  fn: 'doUse'    },
+        { label: '🎲 Roll',    cls: 'btn-roll',  fn: 'doRoll'   },
+      ]
+    },
+    {
+      name: 'BLAST CHILLER', tag: 'Frost', cost: 5, color: 'teal', reuse: true,
+      desc: '❄️ 4 damage + ❄️ freeze. (Reuseable)',
+      actions: [
+        { label: '❄️ Freeze',  cls: 'btn-freeze', fn: 'doFreeze' },
+        { label: '⚔️ Attack', cls: 'btn-attack',  fn: 'doAttack' },
+      ]
+    },
+  ];
+
+  let cardTemplateIdx = 0;
+
+  /* ─────────────────────────────────────────
+     Log helpers
+  ───────────────────────────────────────── */
+  function log(msg, type = '') {
+    const out = document.getElementById('log-output');
+    const now = new Date();
+    const ts  = now.getHours().toString().padStart(2,'0') + ':' +
+                now.getMinutes().toString().padStart(2,'0') + ':' +
+                now.getSeconds().toString().padStart(2,'0');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    line.innerHTML = `<span class="log-time">[${ts}]</span><span class="log-msg ${type}">${msg}</span>`;
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+    console.log(`[DUNGEON ${ts}] ${msg}`);
+  }
+
+  function clearLog() {
+    document.getElementById('log-output').innerHTML = '';
+    console.clear();
+    console.log('[DUNGEON] Log cleared.');
+  }
+
+  /* ─────────────────────────────────────────
+     HUD update
+  ───────────────────────────────────────── */
+  function updateHUD() {
+    const pct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
+    document.getElementById('hp-bar').style.width = pct + '%';
+    document.getElementById('hp-text').textContent = hp + ' / ' + maxHp;
+    document.getElementById('dice-count').textContent = '🎲 x' + dice;
+    document.getElementById('turn-badge').textContent = 'Turn ' + turn;
+  }
+
+  /* ─────────────────────────────────────────
+     Button actions
+  ───────────────────────────────────────── */
+  window.doAttack = function(cardName) {
+    const dmg = Math.floor(Math.random() * 8) + 1;
+    log(`⚔️  [${cardName}] ATTACK — dealt ${dmg} damage to enemy!`, 'dmg');
+  };
+
+  window.doHeal = function(cardName) {
+    const amount = Math.floor(Math.random() * 6) + 1;
+    hp = Math.min(maxHp, hp + amount);
+    updateHUD();
+    log(`❤️  [${cardName}] HEAL — restored ${amount} HP. (${hp}/${maxHp})`, 'heal');
+  };
+
+  window.doRoll = function(cardName) {
+    if (dice <= 0) { log(`🎲  [${cardName}] ROLL — no dice remaining!`, 'warn'); return; }
+    const result = Math.floor(Math.random() * 6) + 1;
+    dice--;
+    updateHUD();
+    log(`🎲  [${cardName}] ROLL — rolled a ${result}! (${dice} dice left)`, 'dice');
+    turn++;
+    updateHUD();
+  };
+
+  window.doUse = function(cardName) {
+    const blessings = ['Extra turn', 'Shield +5', 'Poison enemy', 'Summon ally', 'Double damage next'];
+    const b = blessings[Math.floor(Math.random() * blessings.length)];
+    log(`✨  [${cardName}] ACTIVATE — blessing: "${b}"!`, 'info');
+  };
+
+  window.doFreeze = function(cardName) {
+    log(`❄️  [${cardName}] FREEZE — enemy is frozen for 2 turns!`, 'info');
+  };
+
+  window.doInfo = function(cardName) {
+    log(`ℹ️  [${cardName}] INFO — card inspected.`, 'info');
+  };
+
+  /* ─────────────────────────────────────────
+     Card factory
+  ───────────────────────────────────────── */
+  function createCard(opts) {
+    const tmpl = opts || CARD_TEMPLATES[cardTemplateIdx % CARD_TEMPLATES.length];
+    cardTemplateIdx++;
+
+    const canvas = document.getElementById('canvas');
+    const x = opts ? (opts.x ?? 30) : Math.random() * Math.max(30, canvas.offsetWidth  - 240);
+    const y = opts ? (opts.y ?? 30) : Math.random() * Math.max(30, canvas.offsetHeight - 220);
+
+    const card = document.createElement('div');
+    card.className = `card ${tmpl.color}`;
+    card.style.left = x + 'px';
+    card.style.top  = y + 'px';
+    card.style.zIndex = ++zCounter;
+
+    const actionsHTML = tmpl.actions.map(a =>
+      `<button class="action-btn ${a.cls}" data-fn="${a.fn}" data-card="${escHtml(tmpl.name)}">${a.label}</button>`
+    ).join('');
+
+    card.innerHTML = `
+      <div class="close-btn" title="Discard">✕</div>
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-name">${escHtml(tmpl.name)}</div>
+          <div class="card-tag">${escHtml(tmpl.tag)}</div>
+        </div>
+        <div class="card-cost">${tmpl.cost}</div>
+      </div>
+      <div class="card-body">
+        <div class="card-desc" title="Double-click to edit">${escHtml(tmpl.desc)}</div>
+        ${tmpl.reuse ? '<span class="card-reuse">(Reuseable)</span>' : ''}
+        <div class="edit-hint">double-click to edit</div>
+      </div>
+      <div class="card-actions">${actionsHTML}</div>
+      <div class="resize-handle"></div>
+    `;
+
+    /* bring to front */
+    card.addEventListener('mousedown', () => { card.style.zIndex = ++zCounter; });
+
+    /* drag */
+    makeDraggable(card, card.querySelector('.card-header'));
+
+    /* close / discard */
+    card.querySelector('.close-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      log(`🗑️  [${tmpl.name}] card discarded.`, 'warn');
+      card.remove();
+    });
+
+    /* action buttons */
+    card.querySelectorAll('.action-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const fn   = btn.dataset.fn;
+        const name = btn.dataset.card;
+        if (typeof window[fn] === 'function') window[fn](name);
+        else log(`? Unknown action: ${fn}`, 'error');
+      });
+    });
+
+    /* double-click desc to edit */
+    const desc = card.querySelector('.card-desc');
+    desc.addEventListener('dblclick', e => { e.stopPropagation(); enableEditing(desc); });
+
+    /* resize */
+    makeResizable(card, card.querySelector('.resize-handle'));
+
+    canvas.appendChild(card);
+    log(`📜  [${tmpl.name}] card played.`, 'info');
+    return card;
+  }
+
+  /* ─────────────────────────────────────────
+     Editing
+  ───────────────────────────────────────── */
+  function enableEditing(el) {
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    function stopEdit(e) {
+      if (!el.contains(e.target)) {
+        el.removeAttribute('contenteditable');
+        document.removeEventListener('mousedown', stopEdit);
+      }
+    }
+    setTimeout(() => document.addEventListener('mousedown', stopEdit), 50);
+    el.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        el.removeAttribute('contenteditable');
+        el.removeEventListener('keydown', onKey);
+      }
+    });
+  }
+
+  /* ─────────────────────────────────────────
+     Drag
+  ───────────────────────────────────────── */
+  function makeDraggable(card, handle) {
+    let sx, sy, ox, oy, dragging = false;
+    handle.addEventListener('mousedown', e => {
+      if (e.target.closest('.action-btn, .close-btn, [contenteditable]')) return;
+      e.preventDefault();
+      dragging = true;
+      sx = e.clientX; sy = e.clientY;
+      ox = card.offsetLeft; oy = card.offsetTop;
+      card.style.zIndex = ++zCounter;
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const canvas = document.getElementById('canvas');
+      card.style.left = Math.max(0, Math.min(ox + e.clientX - sx, canvas.offsetWidth  - card.offsetWidth))  + 'px';
+      card.style.top  = Math.max(0, Math.min(oy + e.clientY - sy, canvas.offsetHeight - card.offsetHeight)) + 'px';
+    });
+    document.addEventListener('mouseup', () => { dragging = false; });
+  }
+
+  /* ─────────────────────────────────────────
+     Resize
+  ───────────────────────────────────────── */
+  function makeResizable(card, handle) {
+    let sx, sy, ow, oh, resizing = false;
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      resizing = true;
+      sx = e.clientX; sy = e.clientY;
+      ow = card.offsetWidth; oh = card.offsetHeight;
+    });
+    document.addEventListener('mousemove', e => {
+      if (!resizing) return;
+      card.style.width  = Math.max(160, ow + e.clientX - sx) + 'px';
+      card.style.height = Math.max(140, oh + e.clientY - sy) + 'px';
+    });
+    document.addEventListener('mouseup', () => { resizing = false; });
+  }
+
+  /* ─────────────────────────────────────────
+     Helpers
+  ───────────────────────────────────────── */
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ─────────────────────────────────────────
+     Seed
+  ───────────────────────────────────────── */
+  const SEED = [
+    { ...CARD_TEMPLATES[0], x:  20, y:  10 },
+    { ...CARD_TEMPLATES[1], x: 250, y:  10 },
+    { ...CARD_TEMPLATES[2], x: 480, y:  10 },
+    { ...CARD_TEMPLATES[3], x: 710, y:  10 },
+    { ...CARD_TEMPLATES[4], x:  20, y: 210 },
+    { ...CARD_TEMPLATES[5], x: 250, y: 210 },
+    { ...CARD_TEMPLATES[6], x: 480, y: 210 },
+  ];
+  SEED.forEach(createCard);
+  updateHUD();
+  log('⚔️  Dungeon session started. Good luck, Hero!', 'info');
+</script>
+</body>
+</html>
