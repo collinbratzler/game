@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Power Equations Flashcards – EIT Prep</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<!-- MathJax for LaTeX rendering -->
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[','\\]']] },
+    options: { skipHtmlTags: ['script','noscript','style','textarea'] }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" crossorigin="anonymous"></script>
+
+<style>
+  :root {
+    --bg: #0f0e17;
+    --card-bg: #1a1828;
+    --accent1: #ff6b35;
+    --accent3: #4ecdc4;
+    --accent4: #ffe66d;
+    --text: #fffffe;
+    --muted: #a7a9be;
+    --border: #2e2c45;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--accent1), var(--accent4));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header p {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .progress-bar-wrap {
+    width: 100%;
+    max-width: 480px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 36px;
+    position: relative;
+    z-index: 1;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent1), var(--accent4));
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  .counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 24px;
+    letter-spacing: 0.1em;
+    position: relative;
+    z-index: 1;
+  }
+
+  .side-indicators {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .side-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s, transform 0.3s;
+  }
+  .side-dot.active {
+    background: var(--accent1);
+    transform: scale(1.4);
+  }
+
+  /* CARD */
+  .card-scene {
+    width: 100%;
+    max-width: 480px;
+    height: 300px;
+    perspective: 1200px;
+    position: relative;
+    z-index: 1;
+    cursor: pointer;
+    margin-bottom: 32px;
+  }
+
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    padding: 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .face-0 {
+    background: linear-gradient(145deg, #1e1c2e, #2a2640);
+    transform: rotateY(0deg);
+  }
+  .face-1 {
+    background: linear-gradient(145deg, #1c2520, #1f302b);
+    transform: rotateY(180deg);
+  }
+  .face-2 {
+    background: linear-gradient(145deg, #22191a, #301e1c);
+    transform: rotateY(360deg);
+  }
+
+  .card-inner[data-face="0"] { transform: rotateY(0deg); }
+  .card-inner[data-face="1"] { transform: rotateY(-180deg); }
+  .card-inner[data-face="2"] { transform: rotateY(-360deg); }
+
+  .face-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+
+  .face-0 .face-label { background: rgba(255,107,53,0.15); color: var(--accent1); }
+  .face-1 .face-label { background: rgba(78,205,196,0.15); color: var(--accent3); }
+  .face-2 .face-label { background: rgba(255,230,109,0.15); color: var(--accent4); }
+
+  .card-name {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  .card-meaning {
+    font-size: 0.88rem;
+    color: var(--text);
+    text-align: center;
+    line-height: 1.7;
+    max-width: 360px;
+  }
+  .card-meaning strong { color: var(--accent3); font-weight: 500; }
+
+  .card-equation {
+    text-align: center;
+    color: var(--accent4);
+    max-width: 380px;
+    line-height: 1.8;
+  }
+
+  /* Force MathJax output to inherit the yellow color */
+  .card-equation mjx-container {
+    color: var(--accent4) !important;
+  }
+
+  .tap-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 14px;
+    letter-spacing: 0.06em;
+    font-family: 'DM Mono', monospace;
+    flex-shrink: 0;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    padding: 12px 24px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .btn:hover { border-color: var(--accent1); color: var(--accent1); transform: translateY(-1px); }
+
+  .btn-flip { background: transparent; border: 1px solid var(--accent3); color: var(--accent3); }
+  .btn-flip:hover { background: var(--accent3); color: var(--bg); }
+
+  .btn-primary { background: var(--accent1); border-color: var(--accent1); color: #fff; }
+  .btn-primary:hover { background: #ff8555; border-color: #ff8555; color: #fff; }
+
+  #loadingMsg {
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes shufflePop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(0.93) rotate(-2deg); }
+    70%  { transform: scale(1.03) rotate(1deg); }
+    100% { transform: scale(1); }
+  }
+  .shuffle-anim { animation: shufflePop 0.4s ease forwards; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Power Equations</h1>
+  <p>EIT Exam Prep · Flashcards</p>
+</header>
+
+<div class="progress-bar-wrap">
+  <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+</div>
+
+<div class="counter" id="counter">Loading…</div>
+
+<div class="side-indicators">
+  <div class="side-dot active" id="dot0"></div>
+  <div class="side-dot" id="dot1"></div>
+  <div class="side-dot" id="dot2"></div>
+</div>
+
+<div id="loadingMsg">Loading equations…</div>
+
+<div class="card-scene" id="cardScene" style="display:none" onclick="nextFace()">
+  <div class="card-inner" id="cardInner" data-face="0">
+
+    <!-- Face 0: Name -->
+    <div class="card-face face-0">
+      <div class="face-label">⚡ Name</div>
+      <div class="card-name" id="nameText"></div>
+      <div class="tap-hint">tap to flip →</div>
+    </div>
+
+    <!-- Face 1: Meaning -->
+    <div class="card-face face-1">
+      <div class="face-label">📖 Meaning</div>
+      <div class="card-meaning" id="meaningText"></div>
+      <div class="tap-hint">tap to flip →</div>
+    </div>
+
+    <!-- Face 2: Equation (LaTeX) -->
+    <div class="card-face face-2">
+      <div class="face-label">∑ Equation</div>
+      <div class="card-equation" id="equationText"></div>
+      <div class="tap-hint">tap to flip →</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="controls" id="controls" style="display:none">
+  <button class="btn" onclick="prevCard()">← Prev</button>
+  <button class="btn btn-flip" onclick="nextFace()">Flip</button>
+  <button class="btn btn-primary" onclick="nextCard()">Next →</button>
+</div>
+
+<script>
+let cards = [];
+let currentCard = 0;
+let currentFace = 0;
+
+// ── Load card data from equations.json (same folder) ──────────────────────────
+fetch('equations.json')
+  .then(r => {
+    if (!r.ok) throw new Error('Could not load equations.json');
+    return r.json();
+  })
+  .then(data => {
+    cards = data;
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('cardScene').style.display = 'block';
+    document.getElementById('controls').style.display = 'flex';
+    loadCard(0);
+  })
+  .catch(err => {
+    document.getElementById('loadingMsg').textContent =
+      '⚠ Failed to load equations.json — make sure it lives in the same folder as index.html.';
+    console.error(err);
+  });
+
+// ── Render a card by index ─────────────────────────────────────────────────────
+async function loadCard(index) {
+  const c = cards[index];
+
+  // Face 0: plain text name
+  document.getElementById('nameText').textContent = c.name;
+
+  // Face 1: meaning (allows HTML like <strong>, <sub>)
+  document.getElementById('meaningText').innerHTML = c.meaning;
+
+  // Face 2: LaTeX equation via MathJax display math
+  const eqEl = document.getElementById('equationText');
+  eqEl.innerHTML = '\\[' + c.equation + '\\]';
+
+  // Re-typeset only the equation element for performance
+  if (window.MathJax && MathJax.typesetPromise) {
+    await MathJax.typesetPromise([eqEl]);
+  }
+
+  // Reset to face 0
+  currentFace = 0;
+  document.getElementById('cardInner').setAttribute('data-face', '0');
+  updateDots();
+
+  // Update counter + progress bar
+  document.getElementById('counter').textContent =
+    `Card ${index + 1} of ${cards.length}`;
+  const pct = (index / Math.max(cards.length - 1, 1)) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+// ── Face cycling ──────────────────────────────────────────────────────────────
+function nextFace() {
+  currentFace = (currentFace + 1) % 3;
+  document.getElementById('cardInner').setAttribute('data-face', currentFace);
+  updateDots();
+}
+
+function updateDots() {
+  for (let i = 0; i < 3; i++) {
+    document.getElementById('dot' + i).classList.toggle('active', i === currentFace);
+  }
+}
+
+// ── Card navigation ───────────────────────────────────────────────────────────
+function nextCard() {
+  if (currentCard < cards.length - 1) {
+    currentCard++;
+    animateShuffle();
+    loadCard(currentCard);
+  }
+}
+
+function prevCard() {
+  if (currentCard > 0) {
+    currentCard--;
+    animateShuffle();
+    loadCard(currentCard);
+  }
+}
+
+function animateShuffle() {
+  const scene = document.getElementById('cardScene');
+  scene.classList.remove('shuffle-anim');
+  void scene.offsetWidth;
+  scene.classList.add('shuffle-anim');
+}
+</script>
+</body>
+</html>

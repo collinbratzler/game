@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Real Power (DC)",
+    "meaning": "Power delivered to a resistive load.<br><br><strong>P</strong> = Real power (Watts, W)<br><strong>V</strong> = Voltage (Volts, V)<br><strong>I</strong> = Current (Amperes, A)<br><strong>R</strong> = Resistance (Ohms, Ω)",
+    "equation": "P = VI = I^2 R = \\frac{V^2}{R}"
+  },
+  {
+    "name": "AC Real Power",
+    "meaning": "Average power consumed by an AC circuit.<br><br><strong>P</strong> = Real power (Watts, W)<br><strong>V</strong> = RMS voltage (V)<br><strong>I</strong> = RMS current (A)<br><strong>θ</strong> = Phase angle between V and I",
+    "equation": "P = VI\\cos(\\theta)"
+  },
+  {
+    "name": "Reactive Power",
+    "meaning": "Power stored and returned by inductors/capacitors — does no real work.<br><br><strong>Q</strong> = Reactive power (VAR)<br><strong>V</strong> = RMS voltage (V)<br><strong>I</strong> = RMS current (A)<br><strong>θ</strong> = Phase angle between V and I",
+    "equation": "Q = VI\\sin(\\theta)"
+  },
+  {
+    "name": "Apparent Power",
+    "meaning": "Total power supplied by the source; combination of real and reactive power.<br><br><strong>S</strong> = Apparent power (VA)<br><strong>P</strong> = Real power (W)<br><strong>Q</strong> = Reactive power (VAR)<br><strong>V, I</strong> = RMS voltage and current",
+    "equation": "S = VI = \\sqrt{P^2 + Q^2}"
+  },
+  {
+    "name": "Power Factor",
+    "meaning": "Ratio of real power to apparent power; how efficiently power is used.<br><br><strong>PF</strong> = Power factor (dimensionless, 0–1)<br><strong>P</strong> = Real power (W)<br><strong>S</strong> = Apparent power (VA)<br><strong>θ</strong> = Phase angle between V and I",
+    "equation": "PF = \\frac{P}{S} = \\cos(\\theta)"
+  },
+  {
+    "name": "3-Phase Real Power",
+    "meaning": "Real power in a balanced 3-phase system.<br><br><strong>P</strong> = Total real power (W)<br><strong>V<sub>L</sub></strong> = Line-to-line RMS voltage (V)<br><strong>I<sub>L</sub></strong> = Line RMS current (A)<br><strong>θ</strong> = Phase angle per phase",
+    "equation": "P = \\sqrt{3}\\, V_L I_L \\cos(\\theta)"
+  },
+  {
+    "name": "3-Phase Apparent Power",
+    "meaning": "Total apparent power in a balanced 3-phase system.<br><br><strong>S</strong> = Apparent power (VA)<br><strong>V<sub>L</sub></strong> = Line-to-line RMS voltage (V)<br><strong>I<sub>L</sub></strong> = Line RMS current (A)",
+    "equation": "S = \\sqrt{3}\\, V_L I_L"
+  },
+  {
+    "name": "Transformer Power",
+    "meaning": "In an ideal transformer, input power equals output power.<br><br><strong>V<sub>1</sub>, V<sub>2</sub></strong> = Primary/secondary voltage (V)<br><strong>I<sub>1</sub>, I<sub>2</sub></strong> = Primary/secondary current (A)<br><strong>N<sub>1</sub>, N<sub>2</sub></strong> = Primary/secondary turns<br>Turns ratio: N₁/N₂ = V₁/V₂ = I₂/I₁",
+    "equation": "V_1 I_1 = V_2 I_2"
+  },
+  {
+    "name": "Joule's Heating Law",
+    "meaning": "Heat energy dissipated in a resistor over time.<br><br><strong>W</strong> = Energy (Joules, J)<br><strong>P</strong> = Power (Watts, W)<br><strong>I</strong> = Current (A)<br><strong>R</strong> = Resistance (Ω)<br><strong>t</strong> = Time (seconds, s)",
+    "equation": "W = Pt = I^2 R t"
+  },
+  {
+    "name": "Maximum Power Transfer",
+    "meaning": "Maximum power delivered to a load when load resistance equals source resistance.<br><br><strong>P<sub>max</sub></strong> = Maximum power (W)<br><strong>V<sub>s</sub></strong> = Thevenin voltage (V)<br><strong>R<sub>s</sub></strong> = Thevenin resistance (Ω)<br>Condition: R<sub>L</sub> = R<sub>s</sub>",
+    "equation": "P_{\\max} = \\frac{V_s^2}{4 R_s}"
+  }
+]
