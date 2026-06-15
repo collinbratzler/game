@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Tavern Oracle</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&display=swap');
+
+  :root {
+    --parchment: #f0e6c8;
+    --parchment-dark: #d4c49a;
+    --ink: #2c1a0e;
+    --ink-light: #4a3020;
+    --crimson: #8b1a1a;
+    --crimson-light: #c0392b;
+    --forest: #2d5016;
+    --forest-light: #4a7c1f;
+    --gold: #b8860b;
+    --gold-light: #daa520;
+    --stone: #6b6b6b;
+    --stone-light: #9b9b9b;
+    --shield-blue: #3a5f8a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IM Fell English', serif;
+    background-color: #1a0f05;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(139,90,43,0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(139,26,26,0.1) 0%, transparent 50%),
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 2px,
+        rgba(255,255,255,0.01) 2px,
+        rgba(255,255,255,0.01) 4px
+      );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Floating particle embers */
+  .ember {
+    position: fixed;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(255, 160, 50, 0.7);
+    pointer-events: none;
+    z-index: 0;
+    animation: float-up linear infinite;
+    box-shadow: 0 0 6px rgba(255,160,50,0.8);
+  }
+
+  @keyframes float-up {
+    0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0.8; }
+    50%  { transform: translateY(-50vh) translateX(20px) scale(0.6); opacity: 0.4; }
+    100% { transform: translateY(-100vh) translateX(-10px) scale(0.1); opacity: 0; }
+  }
+
+  .page {
+    display: none;
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+    padding: 20px;
+    animation: page-reveal 0.6s ease both;
+  }
+
+  .page.active { display: block; }
+
+  @keyframes page-reveal {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .scroll-card {
+    background: var(--parchment);
+    border-radius: 4px;
+    padding: 48px 52px;
+    position: relative;
+    box-shadow:
+      0 0 0 1px var(--parchment-dark),
+      0 0 0 4px var(--ink),
+      0 0 0 6px var(--gold),
+      0 8px 40px rgba(0,0,0,0.6),
+      inset 0 0 60px rgba(180,140,80,0.2);
+  }
+
+  .scroll-card::before, .scroll-card::after {
+    content: '';
+    position: absolute;
+    left: 12px; right: 12px;
+    height: 6px;
+    background: linear-gradient(90deg, var(--ink), var(--gold-light), var(--ink));
+    border-radius: 2px;
+  }
+  .scroll-card::before { top: 14px; }
+  .scroll-card::after  { bottom: 14px; }
+
+  /* Corner ornaments */
+  .ornament {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    color: var(--gold);
+    font-size: 22px;
+    line-height: 1;
+  }
+  .ornament-tl { top: 6px; left: 6px; }
+  .ornament-tr { top: 6px; right: 6px; transform: scaleX(-1); }
+  .ornament-bl { bottom: 6px; left: 6px; transform: scaleY(-1); }
+  .ornament-br { bottom: 6px; right: 6px; transform: scale(-1); }
+
+  h1.title {
+    font-family: 'Cinzel Decorative', serif;
+    color: var(--ink);
+    font-size: 1.1rem;
+    text-align: center;
+    letter-spacing: 0.12em;
+    margin-bottom: 32px;
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.3);
+  }
+
+  .think-text {
+    font-family: 'Cinzel', serif;
+    font-size: 1.85rem;
+    color: var(--ink);
+    text-align: center;
+    line-height: 1.5;
+    margin-bottom: 40px;
+    font-weight: 400;
+  }
+
+  .think-text em {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    color: var(--crimson);
+    font-size: 2.1rem;
+  }
+
+  .divider {
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 0 auto 32px;
+  }
+
+  /* Buttons */
+  .btn-ready {
+    display: block;
+    margin: 0 auto;
+    padding: 14px 48px;
+    background: linear-gradient(160deg, var(--forest-light), var(--forest));
+    color: var(--parchment);
+    border: 2px solid var(--forest);
+    border-radius: 3px;
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+    transition: all 0.2s ease;
+  }
+
+  .btn-ready::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(160deg, rgba(255,255,255,0.15), transparent);
+    pointer-events: none;
+  }
+
+  .btn-ready:hover {
+    background: linear-gradient(160deg, #5d9a28, #3a6b1a);
+    box-shadow: 0 6px 24px rgba(74,124,31,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+    transform: translateY(-2px);
+  }
+
+  .btn-ready:active { transform: translateY(0); }
+
+  /* Question screen */
+  .question-label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 14px;
+  }
+
+  .question-text {
+    font-family: 'IM Fell English', serif;
+    font-size: 1.2rem;
+    color: var(--ink);
+    line-height: 1.7;
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .choices {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .btn-choice {
+    padding: 14px 20px;
+    background: linear-gradient(160deg, #3a2510, #2a1a08);
+    color: var(--parchment);
+    border: 1px solid var(--gold);
+    border-radius: 3px;
+    font-family: 'IM Fell English', serif;
+    font-size: 1rem;
+    font-style: italic;
+    cursor: pointer;
+    text-align: left;
+    line-height: 1.5;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,200,100,0.1);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-choice::before {
+    content: '⚔';
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gold-light);
+    transition: left 0.2s ease;
+  }
+
+  .btn-choice:hover::before { left: 12px; }
+  .btn-choice:hover {
+    padding-left: 36px;
+    background: linear-gradient(160deg, #5a3820, #3a2510);
+    border-color: var(--gold-light);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,200,100,0.15);
+    transform: translateX(2px);
+  }
+
+  .btn-choice.selected {
+    background: linear-gradient(160deg, var(--gold), #8b6508);
+    color: var(--ink);
+    border-color: var(--gold-light);
+    font-style: normal;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  .btn-choice.faded {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  /* Progress dots */
+  .progress-dots {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--gold);
+    background: transparent;
+    transition: background 0.3s;
+  }
+  .dot.filled { background: var(--gold); }
+
+  /* Next question reveal */
+  .question-block {
+    overflow: hidden;
+    transition: max-height 0.5s ease, opacity 0.5s ease;
+    max-height: 0;
+    opacity: 0;
+  }
+  .question-block.visible {
+    max-height: 400px;
+    opacity: 1;
+  }
+
+  /* Character Sheet */
+  .char-title {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 1.5rem;
+    color: var(--ink);
+    text-align: center;
+    margin-bottom: 6px;
+  }
+
+  .char-subtitle {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    color: var(--ink-light);
+    text-align: center;
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+  }
+
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .stat-btn {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--ink);
+    background: linear-gradient(160deg, #3a2510, #2a1a08);
+    color: var(--parchment);
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    line-height: 1;
+    padding-bottom: 2px;
+  }
+
+  .stat-btn:hover {
+    background: linear-gradient(160deg, #5a3820, #3a2510);
+    transform: scale(1.1);
+  }
+
+  .bar-wrap {
+    flex: 1;
+    position: relative;
+    height: 32px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.25);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.4);
+  }
+
+  .bar-track {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.15);
+  }
+
+  .bar-fill {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .bar-fill.health {
+    background: linear-gradient(90deg, #8b1a1a, #c0392b, #e74c3c);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+
+  .bar-fill.shield {
+    background: linear-gradient(90deg, #2c4a6e, #3a5f8a, #4a7aaa);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+
+  .bar-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cinzel', serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    letter-spacing: 0.1em;
+    z-index: 1;
+  }
+
+  .bar-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+  }
+
+  /* Ability cards */
+  .abilities {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 24px;
+  }
+
+  .ability-card {
+    background: linear-gradient(160deg, #2c1a0e, #1e0f05);
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,200,100,0.08);
+  }
+
+  .ability-name {
+    font-family: 'Cinzel', serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--gold-light);
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .ability-desc {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    color: var(--parchment-dark);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .ability-val {
+    color: var(--gold-light);
+    font-style: normal;
+    font-weight: bold;
+  }
+
+  /* Restart */
+  .btn-restart {
+    display: block;
+    margin: 24px auto 0;
+    padding: 10px 30px;
+    background: transparent;
+    color: var(--ink-light);
+    border: 1px solid var(--parchment-dark);
+    border-radius: 3px;
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-restart:hover {
+    background: rgba(0,0,0,0.08);
+    color: var(--ink);
+  }
+
+  @media (max-width: 500px) {
+    .scroll-card { padding: 36px 28px; }
+    .think-text { font-size: 1.4rem; }
+    .abilities { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Ember particles -->
+<script>
+  for (let i = 0; i < 18; i++) {
+    const e = document.createElement('div');
+    e.className = 'ember';
+    e.style.left = Math.random() * 100 + 'vw';
+    e.style.bottom = '-10px';
+    e.style.animationDuration = (6 + Math.random() * 10) + 's';
+    e.style.animationDelay = (Math.random() * 12) + 's';
+    e.style.opacity = (0.3 + Math.random() * 0.6).toString();
+    document.body.appendChild(e);
+  }
+</script>
+
+<!-- PAGE 1: Intro -->
+<div class="page active" id="page-intro">
+  <div class="scroll-card">
+    <span class="ornament ornament-tl">❧</span>
+    <span class="ornament ornament-tr">❧</span>
+    <span class="ornament ornament-bl">❧</span>
+    <span class="ornament ornament-br">❧</span>
+    <h1 class="title">The Tavern Oracle</h1>
+    <div class="divider"></div>
+    <p class="think-text">Think of a<br><em>character...</em></p>
+    <div class="divider"></div>
+    <button class="btn-ready" onclick="goToQuestions()">I'm Ready</button>
+  </div>
+</div>
+
+<!-- PAGE 2: Questions -->
+<div class="page" id="page-questions">
+  <div class="scroll-card">
+    <span class="ornament ornament-tl">❧</span>
+    <span class="ornament ornament-tr">❧</span>
+    <span class="ornament ornament-bl">❧</span>
+    <span class="ornament ornament-br">❧</span>
+    <h1 class="title">The Tavern Oracle</h1>
+
+    <div class="progress-dots">
+      <div class="dot filled" id="dot-1"></div>
+      <div class="dot" id="dot-2"></div>
+      <div class="dot" id="dot-3"></div>
+    </div>
+
+    <!-- Question 1 -->
+    <div class="question-block visible" id="q1">
+      <p class="question-label">Trial I — The Tavern</p>
+      <p class="question-text">A stranger in a bar goes up to you and challenges you to a drink-off. You...</p>
+      <div class="choices">
+        <button class="btn-choice" onclick="answer(1, 'A', this)">Accept and drink them under the table</button>
+        <button class="btn-choice" onclick="answer(1, 'B', this)">Smash your glass over their head, knocking them out</button>
+      </div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="question-block" id="q2">
+      <div class="divider" style="margin-bottom:20px;"></div>
+      <p class="question-label">Trial II — The Woods</p>
+      <p class="question-text">A witch you meet in the woods offers you many riches if you take a bite of the mushroom she holds out. You...</p>
+      <div class="choices">
+        <button class="btn-choice" onclick="answer(2, 'A', this)">Take a bite of only the stem, knowing it is not dangerous</button>
+        <button class="btn-choice" onclick="answer(2, 'B', this)">Swallow the whole thing at once, maintaining your composure despite the poison</button>
+      </div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="question-block" id="q3">
+      <div class="divider" style="margin-bottom:20px;"></div>
+      <p class="question-label">Trial III — The Ambush</p>
+      <p class="question-text">A goblin sneak attacks you from behind cover. You...</p>
+      <div class="choices">
+        <button class="btn-choice" onclick="answer(3, 'A', this)">Suffer the blow but return the favor with an even heavier attack</button>
+        <button class="btn-choice" onclick="answer(3, 'B', this)">Quickly sidestep, avoiding the attack, and then run as fast and as far as you can</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PAGE 3: Character Sheet -->
+<div class="page" id="page-char">
+  <div class="scroll-card">
+    <span class="ornament ornament-tl">❧</span>
+    <span class="ornament ornament-tr">❧</span>
+    <span class="ornament ornament-bl">❧</span>
+    <span class="ornament ornament-br">❧</span>
+
+    <h1 class="char-title">Your Character</h1>
+    <p class="char-subtitle" id="char-archetype">The Bold Wanderer</p>
+    <div class="divider"></div>
+
+    <!-- Health Bar -->
+    <div class="stat-row">
+      <span class="bar-icon">❤️</span>
+      <button class="stat-btn" onclick="adjustStat('health', -1)">−</button>
+      <div class="bar-wrap">
+        <div class="bar-track"></div>
+        <div class="bar-fill health" id="health-fill" style="width:100%"></div>
+        <div class="bar-label" id="health-label">20/20</div>
+      </div>
+      <button class="stat-btn" onclick="adjustStat('health', +1)">+</button>
+    </div>
+
+    <!-- Shield Bar -->
+    <div class="stat-row">
+      <span class="bar-icon">🛡️</span>
+      <button class="stat-btn" onclick="adjustStat('shield', -1)">−</button>
+      <div class="bar-wrap">
+        <div class="bar-track"></div>
+        <div class="bar-fill shield" id="shield-fill" style="width:0%"></div>
+        <div class="bar-label" id="shield-label">0</div>
+      </div>
+      <button class="stat-btn" onclick="adjustStat('shield', +1)">+</button>
+    </div>
+
+    <div class="divider" style="margin-top:20px;"></div>
+
+    <!-- Ability Cards -->
+    <div class="abilities">
+      <div class="ability-card">
+        <div class="ability-name">⚔ Attack</div>
+        <div class="ability-desc">Deal <span class="ability-val" id="atk-val">4</span> damage to an enemy</div>
+      </div>
+      <div class="ability-card">
+        <div class="ability-name">🛡 Block</div>
+        <div class="ability-desc">Shield yourself or an ally for <span class="ability-val" id="blk-val">3</span></div>
+      </div>
+    </div>
+
+    <button class="btn-restart" onclick="restart()">↩ Begin Anew</button>
+  </div>
+</div>
+
+<script>
+  // Stats
+  let stats = { danger: 0, witts: 0, fortitude: 0 };
+  let answers = [null, null, null];
+  let currentHealth = 20;
+  let maxHealth = 20;
+  let currentShield = 0;
+  const SHIELD_MAX = 20; // visual cap for shield bar
+
+  const archetypes = {
+    // Determined by highest stat (ties broken alphabetically)
+    danger:    ['The Reckless Blade', 'The Fury Unbound', 'The Glass Cannon'],
+    witts:     ['The Silver Tongue', 'The Cunning Fox', 'The Shadow Step'],
+    fortitude: ['The Immovable Wall', 'The Iron Will', 'The Stoic Titan'],
+    balanced:  ['The Wandering Soul', 'The Jack of All Paths', 'The Balanced Blade'],
+  };
+
+  function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function goToQuestions() {
+    show('page-questions');
+  }
+
+  function show(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const el = document.getElementById(id);
+    el.classList.add('active');
+    // re-trigger animation
+    el.style.animation = 'none';
+    el.offsetHeight;
+    el.style.animation = '';
+  }
+
+  function answer(q, choice, btn) {
+    answers[q - 1] = choice;
+    const block = document.getElementById('q' + q);
+    const btns = block.querySelectorAll('.btn-choice');
+    btns.forEach(b => {
+      if (b === btn) b.classList.add('selected');
+      else b.classList.add('faded');
+    });
+
+    // Apply stat
+    if (q === 1) { choice === 'A' ? stats.fortitude++ : stats.danger++; }
+    if (q === 2) { choice === 'A' ? stats.witts++     : stats.fortitude++; }
+    if (q === 3) { choice === 'A' ? stats.danger++    : stats.witts++; }
+
+    // Progress dots
+    const dot = document.getElementById('dot-' + q);
+    if (dot) dot.classList.add('filled');
+
+    if (q < 3) {
+      setTimeout(() => {
+        const next = document.getElementById('q' + (q + 1));
+        next.classList.add('visible');
+        next.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 500);
+    } else {
+      setTimeout(buildCharacter, 700);
+    }
+  }
+
+  function buildCharacter() {
+    // Max health from fortitude
+    const fortMap = [15, 20, 25];
+    maxHealth = fortMap[stats.fortitude];
+    currentHealth = maxHealth;
+    currentShield = 0;
+
+    // Attack from danger
+    const atkMap = [2, 4, 6];
+    const blkMap = [1, 3, 5];
+    document.getElementById('atk-val').textContent = atkMap[stats.danger];
+    document.getElementById('blk-val').textContent = blkMap[stats.witts];
+
+    // Archetype
+    let arch;
+    const max = Math.max(stats.danger, stats.witts, stats.fortitude);
+    const winners = ['danger','witts','fortitude'].filter(k => stats[k] === max);
+    if (winners.length > 1) arch = rand(archetypes.balanced);
+    else arch = rand(archetypes[winners[0]]);
+    document.getElementById('char-archetype').textContent = arch;
+
+    // Render bars
+    renderHealth();
+    renderShield();
+
+    show('page-char');
+  }
+
+  function renderHealth() {
+    const pct = maxHealth > 0 ? (currentHealth / maxHealth) * 100 : 0;
+    document.getElementById('health-fill').style.width = pct + '%';
+    document.getElementById('health-label').textContent = currentHealth + '/' + maxHealth;
+  }
+
+  function renderShield() {
+    const pct = Math.min((currentShield / SHIELD_MAX) * 100, 100);
+    document.getElementById('shield-fill').style.width = pct + '%';
+    document.getElementById('shield-label').textContent = currentShield;
+  }
+
+  function adjustStat(stat, delta) {
+    if (stat === 'health') {
+      currentHealth = Math.min(maxHealth, Math.max(0, currentHealth + delta));
+      renderHealth();
+    } else {
+      currentShield = Math.max(0, currentShield + delta);
+      renderShield();
+    }
+  }
+
+  function restart() {
+    stats = { danger: 0, witts: 0, fortitude: 0 };
+    answers = [null, null, null];
+    currentHealth = 20; maxHealth = 20; currentShield = 0;
+
+    // Reset question blocks
+    ['q1','q2','q3'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      el.querySelectorAll('.btn-choice').forEach(b => {
+        b.classList.remove('selected', 'faded');
+      });
+      if (i === 0) el.classList.add('visible');
+      else el.classList.remove('visible');
+    });
+
+    // Reset dots
+    ['dot-1','dot-2','dot-3'].forEach((id, i) => {
+      const d = document.getElementById(id);
+      if (i === 0) d.classList.add('filled');
+      else d.classList.remove('filled');
+    });
+
+    show('page-intro');
+  }
+</script>
+</body>
+</html>
