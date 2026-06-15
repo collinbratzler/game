@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Knife Throw — Dexterity Trial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --wood-dark:#1c120b;
+    --wood:#2a1a0f;
+    --parchment:#e9d8ae;
+    --parchment-dim:#b09a6b;
+    --brass:#c9963f;
+    --blood:#8e2f23;
+    --steel:#b9c2c9;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;overflow:hidden;}
+  body{
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(201,150,63,.10), transparent 60%),
+      repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 90px),
+      linear-gradient(180deg, var(--wood) 0%, var(--wood-dark) 100%);
+    font-family:'IM Fell English', serif;
+    color:var(--parchment);
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+  }
+
+  #stage{position:fixed;inset:0;cursor:crosshair;}
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:fixed;top:0;left:0;right:0;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    padding:14px 20px;
+    pointer-events:none;
+    z-index:30;
+  }
+  .hud-box{text-align:center;}
+  .hud-label{
+    font-family:'IM Fell English SC', serif;
+    font-size:.72rem;letter-spacing:.18em;
+    color:var(--parchment-dim);
+  }
+  #timer{
+    font-family:'IM Fell English SC', serif;
+    font-size:2.4rem;line-height:1;
+    color:var(--parchment);
+    text-shadow:0 0 18px rgba(201,150,63,.35);
+    min-width:3.2ch;
+  }
+  #timer.low{color:var(--blood);animation:pulse .5s infinite alternate;}
+  @keyframes pulse{from{opacity:1}to{opacity:.55}}
+  #timer-bonus{
+    position:absolute;left:50%;transform:translateX(-50%);
+    top:64px;
+    font-size:1rem;color:var(--brass);
+    opacity:0;pointer-events:none;
+  }
+  #timer-bonus.show{animation:floatUp 1.2s ease-out;}
+  @keyframes floatUp{
+    0%{opacity:0;transform:translate(-50%,8px)}
+    20%{opacity:1}
+    100%{opacity:0;transform:translate(-50%,-22px)}
+  }
+  #knife-rack{display:flex;gap:8px;justify-content:flex-end;}
+  .rack-knife{width:14px;height:44px;transition:opacity .3s;}
+  .rack-knife.spent{opacity:.18;}
+
+  /* ---------- Target ---------- */
+  #board{
+    position:absolute;left:50%;top:50%;
+    transform:translate(-50%,-50%);
+    filter:drop-shadow(0 14px 30px rgba(0,0,0,.6));
+  }
+
+  /* ---------- Wandering cursor ---------- */
+  #ghost{
+    position:absolute;width:46px;height:46px;
+    margin:-23px 0 0 -23px;
+    pointer-events:none;z-index:20;
+    display:none;
+  }
+
+  /* ---------- Stuck knives ---------- */
+  .stuck{
+    position:absolute;width:22px;height:74px;
+    margin-left:-11px;margin-top:-70px; /* tip ends at impact point */
+    pointer-events:none;z-index:15;
+    transform-origin:50% 95%;
+    animation:strike .22s cubic-bezier(.2,1.6,.4,1);
+  }
+  @keyframes strike{
+    0%{transform:scale(2.6) rotate(var(--tilt));opacity:0;}
+    60%{transform:scale(.94) rotate(var(--tilt));opacity:1;}
+    100%{transform:scale(1) rotate(var(--tilt));}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .stuck{animation:none;}
+    #timer.low{animation:none;}
+  }
+
+  /* ---------- Screens ---------- */
+  .screen{
+    position:fixed;inset:0;z-index:50;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(16,10,5,.88);
+    backdrop-filter:blur(3px);
+    text-align:center;padding:24px;
+  }
+  .screen.hidden{display:none;}
+  h1{
+    font-family:'IM Fell English SC', serif;
+    font-weight:400;
+    font-size:clamp(2rem, 7vw, 3.4rem);
+    letter-spacing:.06em;
+    color:var(--parchment);
+  }
+  .rule{
+    width:180px;height:1px;margin:18px auto;
+    background:linear-gradient(90deg, transparent, var(--brass), transparent);
+  }
+  .sub{
+    max-width:42ch;color:var(--parchment-dim);
+    font-size:1.05rem;line-height:1.55;font-style:italic;
+  }
+  button.tavern{
+    margin-top:30px;
+    font-family:'IM Fell English SC', serif;
+    font-size:1.25rem;letter-spacing:.12em;
+    color:var(--wood-dark);
+    background:linear-gradient(180deg, #e0b563, var(--brass));
+    border:1px solid #8a6322;
+    border-radius:3px;
+    padding:13px 44px;
+    cursor:pointer;
+    box-shadow:0 3px 0 #6e4e1a, 0 8px 22px rgba(0,0,0,.5);
+    transition:transform .08s;
+  }
+  button.tavern:active{transform:translateY(2px);box-shadow:0 1px 0 #6e4e1a;}
+  button.tavern:focus-visible{outline:2px solid var(--parchment);outline-offset:3px;}
+
+  /* ---------- Results ---------- */
+  #results-list{margin-top:26px;width:min(420px, 88vw);}
+  .result-row{
+    display:flex;align-items:center;gap:14px;
+    padding:12px 6px;
+    border-bottom:1px solid rgba(201,150,63,.22);
+    text-align:left;
+    opacity:0;
+    animation:rowIn .4s forwards;
+  }
+  .result-row:nth-child(1){animation-delay:.1s}
+  .result-row:nth-child(2){animation-delay:.3s}
+  .result-row:nth-child(3){animation-delay:.5s}
+  @keyframes rowIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .result-row svg{flex:0 0 auto;}
+  .result-name{
+    font-family:'IM Fell English SC', serif;
+    font-size:1.05rem;letter-spacing:.08em;flex:1;
+  }
+  .result-zone{font-size:1.25rem;}
+  .zone-bullseye{color:#e85d45;text-shadow:0 0 12px rgba(232,93,69,.5);}
+  .zone-inner{color:var(--brass);}
+  .zone-outer{color:var(--parchment);}
+  .zone-rim{color:var(--parchment-dim);}
+  .zone-miss{color:#7d6b52;font-style:italic;}
+  .zone-unthrown{color:#5c4f3c;font-style:italic;}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <svg id="board" width="340" height="340" viewBox="0 0 340 340" aria-hidden="true"></svg>
+  <div id="ghost">
+    <svg width="46" height="46" viewBox="0 0 46 46">
+      <circle cx="23" cy="23" r="20" fill="none" stroke="#e9d8ae" stroke-width="1.5" opacity=".85"/>
+      <circle cx="23" cy="23" r="2.5" fill="#e9d8ae"/>
+      <line x1="23" y1="1"  x2="23" y2="11" stroke="#e9d8ae" stroke-width="1.5"/>
+      <line x1="23" y1="35" x2="23" y2="45" stroke="#e9d8ae" stroke-width="1.5"/>
+      <line x1="1"  y1="23" x2="11" y2="23" stroke="#e9d8ae" stroke-width="1.5"/>
+      <line x1="35" y1="23" x2="45" y2="23" stroke="#e9d8ae" stroke-width="1.5"/>
+    </svg>
+  </div>
+</div>
+
+<div id="hud" style="display:none">
+  <div class="hud-box" style="position:relative">
+    <div class="hud-label">TIME</div>
+    <div id="timer">15.0</div>
+  </div>
+  <div id="timer-bonus">+2.5s — bullseye!</div>
+  <div class="hud-box">
+    <div class="hud-label">KNIVES</div>
+    <div id="knife-rack"></div>
+  </div>
+</div>
+
+<div id="screen-start" class="screen">
+  <h1>The Knife Wall</h1>
+  <div class="rule"></div>
+  <p class="sub">Three knives. Fifteen seconds. The blade drifts where it will — tap anywhere to let it fly. Strike the bullseye and the tavern grants you 2.5 more seconds.</p>
+  <button class="tavern" id="btn-start">Take Up the Knives</button>
+</div>
+
+<div id="screen-results" class="screen hidden">
+  <h1>The Wall Speaks</h1>
+  <div class="rule"></div>
+  <div id="results-list"></div>
+  <button class="tavern" id="btn-again">Throw Again</button>
+</div>
+
+<script>
+(() => {
+  // ---------- Config ----------
+  const TOTAL_KNIVES = 3;
+  const START_TIME = 15.0;
+  const BULLSEYE_BONUS = 2.5;
+  // Ring radii as fraction of board radius (board drawn at R px)
+  const ZONES = [
+    {frac: 0.13, name: 'Bullseye',   cls: 'zone-bullseye'},
+    {frac: 0.38, name: 'Inner Ring', cls: 'zone-inner'},
+    {frac: 0.68, name: 'Outer Ring', cls: 'zone-outer'},
+    {frac: 1.00, name: 'Rim',        cls: 'zone-rim'}
+  ];
+
+  // ---------- Elements ----------
+  const stage = document.getElementById('stage');
+  const board = document.getElementById('board');
+  const ghost = document.getElementById('ghost');
+  const hud = document.getElementById('hud');
+  const timerEl = document.getElementById('timer');
+  const bonusEl = document.getElementById('timer-bonus');
+  const rackEl = document.getElementById('knife-rack');
+  const screenStart = document.getElementById('screen-start');
+  const screenResults = document.getElementById('screen-results');
+  const resultsList = document.getElementById('results-list');
+
+  // ---------- Board drawing ----------
+  function boardRadius(){
+    return Math.min(window.innerWidth, window.innerHeight) * 0.30;
+  }
+  function drawBoardClean(){
+    const R = boardRadius();
+    const S = R * 2 + 20;
+    board.setAttribute('width', S);
+    board.setAttribute('height', S);
+    board.setAttribute('viewBox', `0 0 ${S} ${S}`);
+    const c = S / 2;
+    const ring = (r, fill, stroke) =>
+      `<circle cx="${c}" cy="${c}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+    board.innerHTML =
+      ring(R,       '#d8c391', '#4a3a21') +
+      ring(R*0.68,  '#9d3a2b', '#5e2218') +
+      ring(R*0.38,  '#d8c391', '#8a7445') +
+      ring(R*0.13,  '#8e2f23', '#4f180f') +
+      `<circle cx="${c}" cy="${c}" r="${R}" fill="none" stroke="#3a2614" stroke-width="6"/>`;
+  }
+
+  function boardCenter(){
+    return { x: window.innerWidth/2, y: window.innerHeight/2 };
+  }
+
+  // ---------- Knife SVG ----------
+  const KNIFE_SVG = `
+    <svg viewBox="0 0 22 74" width="100%" height="100%">
+      <path d="M11 74 L6 46 L16 46 Z" fill="#cfd6dc" stroke="#7c8790" stroke-width="1"/>
+      <rect x="9.3" y="46" width="3.4" height="4" fill="#8a939b"/>
+      <rect x="4" y="40" width="14" height="6" rx="2" fill="#caa24a" stroke="#7e6325" stroke-width="1"/>
+      <rect x="7.5" y="6" width="7" height="34" rx="3" fill="#4a2f18" stroke="#2c1b0d" stroke-width="1"/>
+      <line x1="7.5" y1="14" x2="14.5" y2="14" stroke="#2c1b0d" stroke-width="1"/>
+      <line x1="7.5" y1="22" x2="14.5" y2="22" stroke="#2c1b0d" stroke-width="1"/>
+      <line x1="7.5" y1="30" x2="14.5" y2="30" stroke="#2c1b0d" stroke-width="1"/>
+      <circle cx="11" cy="8" r="2.5" fill="#caa24a" stroke="#7e6325" stroke-width="1"/>
+    </svg>`;
+
+  function buildRack(){
+    rackEl.innerHTML = '';
+    for(let i=0;i<TOTAL_KNIVES;i++){
+      const d = document.createElement('div');
+      d.className = 'rack-knife';
+      d.innerHTML = KNIFE_SVG;
+      rackEl.appendChild(d);
+    }
+  }
+
+  // ---------- Audio (synthesized) ----------
+  let audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function playPop(){
+    if(!audioCtx) return;
+    const t = audioCtx.currentTime;
+    // pleasant pop: pitched blip + soft thunk
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(660, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.09);
+    g.gain.setValueAtTime(0.28, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t); o.stop(t + 0.15);
+    // thunk: short noise burst lowpassed
+    const len = audioCtx.sampleRate * 0.07;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * (1 - i/len);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type='lowpass'; lp.frequency.value = 420;
+    const ng = audioCtx.createGain(); ng.gain.value = 0.5;
+    src.connect(lp).connect(ng).connect(audioCtx.destination);
+    src.start(t);
+  }
+  function playSwoosh(){
+    if(!audioCtx) return;
+    const t = audioCtx.currentTime;
+    const len = audioCtx.sampleRate * 0.35;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.sin(Math.PI * i/len);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(400, t);
+    bp.frequency.exponentialRampToValueAtTime(2400, t + 0.18);
+    bp.frequency.exponentialRampToValueAtTime(500, t + 0.34);
+    const g = audioCtx.createGain(); g.gain.value = 0.4;
+    src.connect(bp).connect(g).connect(audioCtx.destination);
+    src.start(t);
+  }
+  function playBell(){
+    if(!audioCtx) return; // little chime for bullseye bonus
+    const t = audioCtx.currentTime;
+    [880, 1320].forEach((f, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.12, t + i*0.06);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i*0.06 + 0.5);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(t + i*0.06); o.stop(t + i*0.06 + 0.55);
+    });
+  }
+
+  // ---------- Cursor wander ----------
+  let cursor = {x: 0, y: 0};
+  let target = {x: 0, y: 0};
+  let wanderRAF = null;
+  let speed = 0;
+
+  function pickWanderTarget(){
+    // Bias toward the board area but allow the whole stage
+    const c = boardCenter();
+    const R = boardRadius();
+    if(Math.random() < 0.7){
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * R * 1.5;
+      target.x = c.x + Math.cos(a) * r;
+      target.y = c.y + Math.sin(a) * r;
+    } else {
+      target.x = 30 + Math.random() * (window.innerWidth - 60);
+      target.y = 80 + Math.random() * (window.innerHeight - 140);
+    }
+    speed = 4.5 + Math.random() * 4.5; // px per frame-ish
+  }
+
+  function wanderStep(){
+    const dx = target.x - cursor.x;
+    const dy = target.y - cursor.y;
+    const dist = Math.hypot(dx, dy);
+    if(dist < 12) pickWanderTarget();
+    else {
+      cursor.x += (dx / dist) * speed;
+      cursor.y += (dy / dist) * speed;
+    }
+    ghost.style.left = cursor.x + 'px';
+    ghost.style.top  = cursor.y + 'px';
+    wanderRAF = requestAnimationFrame(wanderStep);
+  }
+
+  // ---------- Game state ----------
+  let playing = false;
+  let knivesLeft = 0;
+  let timeLeft = 0;
+  let lastTick = 0;
+  let timerRAF = null;
+  let results = []; // {name, cls}
+  let stuckEls = [];
+
+  function startGame(){
+    ensureAudio();
+    drawBoardClean();
+    buildRack();
+    stuckEls.forEach(el => el.remove());
+    stuckEls = [];
+    results = [];
+    knivesLeft = TOTAL_KNIVES;
+    timeLeft = START_TIME;
+    playing = true;
+
+    screenStart.classList.add('hidden');
+    screenResults.classList.add('hidden');
+    hud.style.display = 'flex';
+    timerEl.classList.remove('low');
+    updateTimerText();
+
+    cursor = { ...boardCenter() };
+    pickWanderTarget();
+    ghost.style.display = 'block';
+    cancelAnimationFrame(wanderRAF);
+    wanderStep();
+
+    lastTick = performance.now();
+    cancelAnimationFrame(timerRAF);
+    timerRAF = requestAnimationFrame(tick);
+  }
+
+  function tick(now){
+    if(!playing) return;
+    const dt = (now - lastTick) / 1000;
+    lastTick = now;
+    timeLeft -= dt;
+    if(timeLeft <= 0){
+      timeLeft = 0;
+      updateTimerText();
+      endGame();
+      return;
+    }
+    updateTimerText();
+    timerRAF = requestAnimationFrame(tick);
+  }
+
+  function updateTimerText(){
+    timerEl.textContent = timeLeft.toFixed(1);
+    timerEl.classList.toggle('low', timeLeft <= 5);
+  }
+
+  function zoneAt(x, y){
+    const c = boardCenter();
+    const R = boardRadius();
+    const dist = Math.hypot(x - c.x, y - c.y);
+    for(const z of ZONES){
+      if(dist <= R * z.frac) return z;
+    }
+    return null; // miss
+  }
+
+  function throwKnife(){
+    if(!playing || knivesLeft <= 0) return;
+    knivesLeft--;
+    rackEl.children[TOTAL_KNIVES - 1 - knivesLeft].classList.add('spent');
+
+    const x = cursor.x, y = cursor.y;
+    const zone = zoneAt(x, y);
+
+    if(zone){
+      playPop();
+      const k = document.createElement('div');
+      k.className = 'stuck';
+      k.style.left = x + 'px';
+      k.style.top = y + 'px';
+      k.style.setProperty('--tilt', (Math.random()*16 - 8).toFixed(1) + 'deg');
+      k.innerHTML = KNIFE_SVG;
+      stage.appendChild(k);
+      stuckEls.push(k);
+      results.push(zone);
+      if(zone.name === 'Bullseye'){
+        timeLeft += BULLSEYE_BONUS;
+        updateTimerText();
+        playBell();
+        bonusEl.classList.remove('show');
+        void bonusEl.offsetWidth; // restart animation
+        bonusEl.classList.add('show');
+      }
+    } else {
+      playSwoosh();
+      results.push({name: 'Miss', cls: 'zone-miss'});
+    }
+
+    if(knivesLeft === 0){
+      // small delay so the last impact lands visually before results
+      setTimeout(endGame, 650);
+    }
+  }
+
+  function endGame(){
+    if(!playing) return;
+    playing = false;
+    cancelAnimationFrame(timerRAF);
+    cancelAnimationFrame(wanderRAF);
+    ghost.style.display = 'none';
+    while(results.length < TOTAL_KNIVES){
+      results.push({name: 'Never Thrown', cls: 'zone-unthrown'});
+    }
+    showResults();
+  }
+
+  function showResults(){
+    resultsList.innerHTML = '';
+    results.forEach((r, i) => {
+      const row = document.createElement('div');
+      row.className = 'result-row';
+      row.innerHTML = `
+        <svg width="16" height="50" viewBox="0 0 22 74">${KNIFE_SVG.replace(/<\/?svg[^>]*>/g,'')}</svg>
+        <div class="result-name">Knife ${['I','II','III'][i]}</div>
+        <div class="result-zone ${r.cls}">${r.name}</div>`;
+      resultsList.appendChild(row);
+    });
+    hud.style.display = 'none';
+    screenResults.classList.remove('hidden');
+  }
+
+  // ---------- Input ----------
+  function onThrowInput(e){
+    if(!playing) return;
+    e.preventDefault();
+    throwKnife();
+  }
+  stage.addEventListener('pointerdown', onThrowInput);
+  window.addEventListener('keydown', e => {
+    if(playing && (e.code === 'Space' || e.code === 'Enter')){
+      e.preventDefault();
+      throwKnife();
+    }
+  });
+
+  document.getElementById('btn-start').addEventListener('click', startGame);
+  document.getElementById('btn-again').addEventListener('click', startGame);
+
+  window.addEventListener('resize', () => { if(!playing) drawBoardClean(); });
+  drawBoardClean();
+})();
+</script>
+</body>
+</html>
